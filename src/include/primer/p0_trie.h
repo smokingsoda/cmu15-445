@@ -12,13 +12,14 @@
 
 #pragma once
 
+#include <cstddef>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 #include "common/exception.h"
 #include "common/rwlatch.h"
@@ -295,23 +296,26 @@ class Trie {
       return false;
     }
     std::unique_ptr<TrieNode> *node = &this->root_;
-    for (char it : key) {
+    for (char c : key) {
       if ((*node)->IsEndNode()) {
+        (*node)->SetEndNode(false);
       }
-      std::unique_ptr<TrieNode> *temp = (*node)->InsertChildNode(it, std::make_unique<TrieNode>(TrieNode(it)));
-      if (temp != nullptr) {
-        node = temp;
+      if ((*node)->HasChild(c)) {
+        std::unique_ptr<TrieNode> *childNode = (*node)->GetChildNode(c);
+        node = childNode;
       } else {
-        node = (*node)->GetChildNode(it);
+        (*node)->InsertChildNode(c, std::make_unique<TrieNode>(c));
+        std::unique_ptr<TrieNode> *childNode = (*node)->GetChildNode(c);
+        node = childNode;
       }
-    }
-    // If the last node is not the end node, then convert it into TrieNodeWithValue
-    if (!((*node)->IsEndNode())) {
-      *node->reset(new TrieNodeWithValue<T>(**node, value));
-      return true;
     }
     if ((*node)->IsEndNode()) {
+      // It is a TrieNodeWithValue node
       return false;
+    } else {
+      (*node).reset(new TrieNodeWithValue<T>(std::move(*(*node)), value));
+      // This syntax is extremely important!!!
+      return true;
     }
   }
 
@@ -336,18 +340,35 @@ class Trie {
     if (key.empty()) {
       return false;
     }
-    std::unique_ptr<TrieNode> *node = &this->root_;
-    std::unique_ptr<TrieNode> *parent_node = &this->root_;
-    for (char it : key) {
-      if (!(*node)->HasChild(it)) {
+    return Remove_Recursion(key, &(this->root_), 0);
+  }
+
+  bool Remove_Recursion(const std::string &key, std::unique_ptr<TrieNode> *node, size_t index) {
+    if (index >= key.size()) {
+      return false;
+    }
+    if (index == key.size() - 1) {
+      if (!(*node)->IsEndNode()) {
         return false;
+      } else {
+        (*node)->SetEndNode(false);
+        return true;
       }
     }
-    if (!(*node)->HasChildren()) {
-      (*parent_node)->RemoveChildNode((*node)->GetKeyChar());
+    if (!(*node)->HasChild(key.at(index))) {
+      return false;
     }
-    parent_node = node;
-    return true;
+    if ((*node)->HasChild(key.at(index))) {
+      std::unique_ptr<TrieNode> *targetNode = (*node)->GetChildNode(key.at(index));
+      if (Remove_Recursion(key, targetNode, index + 1)) {
+        if (!(*targetNode)->HasChildren()) {
+          (*node)->RemoveChildNode(key.at(index));
+        }
+        return true;
+      }
+      return false;
+    }
+    return false;
   }
 
   /**
@@ -370,8 +391,21 @@ class Trie {
    */
   template <typename T>
   T GetValue(const std::string &key, bool *success) {
-    *success = false;
-    return {};
+    std::unique_ptr<TrieNode> *node = &this->root_;
+    for (char c : key) {
+      if (!(*node)->HasChild(c)) {
+        *success = false;
+        return {};
+      }
+      node = (*node)->GetChildNode(c);
+    }
+    auto tNode = dynamic_cast<TrieNodeWithValue<T> *>(node->get());
+    if (tNode == nullptr) {
+      *success = false;
+      return {};
+    }
+    *success = true;
+    return tNode->GetValue();
   }
 };
 }  // namespace bustub
