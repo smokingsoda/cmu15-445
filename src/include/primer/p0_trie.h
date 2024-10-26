@@ -295,6 +295,7 @@ class Trie {
     if (key.empty()) {
       return false;
     }
+    this->latch_.WLock();
     std::unique_ptr<TrieNode> *node = &this->root_;
     for (char c : key) {
       // if ((*node)->IsEndNode()) {
@@ -311,10 +312,12 @@ class Trie {
     }
     if ((*node)->IsEndNode()) {
       // It is a TrieNodeWithValue node
+      this->latch_.WUnlock();
       return false;
     } else {
       (*node).reset(new TrieNodeWithValue<T>(std::move(*(*node)), value));
       // This syntax is extremely important!!!
+      this->latch_.WUnlock();
       return true;
     }
   }
@@ -340,7 +343,10 @@ class Trie {
     if (key.empty()) {
       return false;
     }
-    return Remove_Recursion(key, &(this->root_), 0);
+    this->latch_.WLock();
+    auto flag = Remove_Recursion(key, &(this->root_), 0);
+    this->latch_.WUnlock();
+    return flag;
   }
 
   bool Remove_Recursion(const std::string &key, std::unique_ptr<TrieNode> *node, size_t index) {
@@ -389,9 +395,11 @@ class Trie {
   template <typename T>
   T GetValue(const std::string &key, bool *success) {
     std::unique_ptr<TrieNode> *node = &this->root_;
+    this->latch_.RLock();
     for (char c : key) {
       if (!(*node)->HasChild(c)) {
         *success = false;
+        this->latch_.RUnlock();
         return {};
       }
       node = (*node)->GetChildNode(c);
@@ -399,9 +407,11 @@ class Trie {
     auto tNode = dynamic_cast<TrieNodeWithValue<T> *>(node->get());
     if (tNode == nullptr) {
       *success = false;
+      this->latch_.RUnlock();
       return {};
     }
     *success = true;
+    this->latch_.RUnlock();
     return tNode->GetValue();
   }
 };
