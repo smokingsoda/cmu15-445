@@ -262,7 +262,7 @@ class Trie {
    * @brief Construct a new Trie object. Initialize the root node with '\0'
    * character.
    */
-  Trie() { this->root_ = std::make_unique<TrieNode>('\0'); };
+  Trie() { this->root_ = std::make_unique<TrieNode>('\0'); }
 
   /**
    * TODO(P0): Add implementation
@@ -302,24 +302,23 @@ class Trie {
       //   (*node)->SetEndNode(false);
       // }
       if ((*node)->HasChild(c)) {
-        std::unique_ptr<TrieNode> *childNode = (*node)->GetChildNode(c);
-        node = childNode;
+        std::unique_ptr<TrieNode> *child_node = (*node)->GetChildNode(c);
+        node = child_node;
       } else {
         (*node)->InsertChildNode(c, std::make_unique<TrieNode>(c));
-        std::unique_ptr<TrieNode> *childNode = (*node)->GetChildNode(c);
-        node = childNode;
+        std::unique_ptr<TrieNode> *child_node = (*node)->GetChildNode(c);
+        node = child_node;
       }
     }
     if ((*node)->IsEndNode()) {
       // It is a TrieNodeWithValue node
       this->latch_.WUnlock();
       return false;
-    } else {
-      (*node).reset(new TrieNodeWithValue<T>(std::move(*(*node)), value));
-      // This syntax is extremely important!!!
-      this->latch_.WUnlock();
-      return true;
     }
+    (*node).reset(new TrieNodeWithValue<T>(std::move(*(*node)), value));
+    // This syntax is extremely important!!!
+    this->latch_.WUnlock();
+    return true;
   }
 
   /**
@@ -344,27 +343,26 @@ class Trie {
       return false;
     }
     this->latch_.WLock();
-    auto flag = Remove_Recursion(key, &(this->root_), 0);
+    auto flag = RemoveRecursion(key, &(this->root_), 0);
     this->latch_.WUnlock();
     return flag;
   }
 
-  bool Remove_Recursion(const std::string &key, std::unique_ptr<TrieNode> *node, size_t index) {
+  bool RemoveRecursion(const std::string &key, std::unique_ptr<TrieNode> *node, size_t index) {
     if (index == key.size()) {
       if (!(*node)->IsEndNode()) {
         return false;
-      } else {
-        (*node)->SetEndNode(false);
-        return true;
       }
+      (*node)->SetEndNode(false);
+      return true;
     }
     if (!(*node)->HasChild(key.at(index))) {
       return false;
     }
     if ((*node)->HasChild(key.at(index))) {
-      std::unique_ptr<TrieNode> *targetNode = (*node)->GetChildNode(key.at(index));
-      if (Remove_Recursion(key, targetNode, index + 1)) {
-        if (!(*targetNode)->HasChildren() && !(*targetNode)->IsEndNode()) {
+      std::unique_ptr<TrieNode> *target_node = (*node)->GetChildNode(key.at(index));
+      if (RemoveRecursion(key, target_node, index + 1)) {
+        if (!(*target_node)->HasChildren() && !(*target_node)->IsEndNode()) {
           (*node)->RemoveChildNode(key.at(index));
         }
         return true;
@@ -404,15 +402,15 @@ class Trie {
       }
       node = (*node)->GetChildNode(c);
     }
-    auto tNode = dynamic_cast<TrieNodeWithValue<T> *>(node->get());
-    if (tNode == nullptr) {
+    auto t_node = dynamic_cast<TrieNodeWithValue<T> *>(node->get());
+    if (t_node == nullptr) {
       *success = false;
       this->latch_.RUnlock();
       return {};
     }
     *success = true;
     this->latch_.RUnlock();
-    return tNode->GetValue();
+    return t_node->GetValue();
   }
 };
 }  // namespace bustub
