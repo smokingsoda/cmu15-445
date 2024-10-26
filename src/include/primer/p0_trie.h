@@ -297,9 +297,9 @@ class Trie {
     }
     std::unique_ptr<TrieNode> *node = &this->root_;
     for (char c : key) {
-      if ((*node)->IsEndNode()) {
-        (*node)->SetEndNode(false);
-      }
+      // if ((*node)->IsEndNode()) {
+      //   (*node)->SetEndNode(false);
+      // }
       if ((*node)->HasChild(c)) {
         std::unique_ptr<TrieNode> *childNode = (*node)->GetChildNode(c);
         node = childNode;
@@ -344,10 +344,7 @@ class Trie {
   }
 
   bool Remove_Recursion(const std::string &key, std::unique_ptr<TrieNode> *node, size_t index) {
-    if (index >= key.size()) {
-      return false;
-    }
-    if (index == key.size() - 1) {
+    if (index == key.size()) {
       if (!(*node)->IsEndNode()) {
         return false;
       } else {
@@ -361,14 +358,14 @@ class Trie {
     if ((*node)->HasChild(key.at(index))) {
       std::unique_ptr<TrieNode> *targetNode = (*node)->GetChildNode(key.at(index));
       if (Remove_Recursion(key, targetNode, index + 1)) {
-        if (!(*targetNode)->HasChildren()) {
+        if (!(*targetNode)->HasChildren() && !(*targetNode)->IsEndNode()) {
           (*node)->RemoveChildNode(key.at(index));
         }
         return true;
       }
       return false;
     }
-    return false;
+    return false;  // NOT HERE
   }
 
   /**
