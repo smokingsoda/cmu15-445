@@ -113,27 +113,15 @@ class ExtendibleHashTable : public HashTable<K, V> {
     explicit Bucket(size_t size, int depth = 0);
 
     /** @brief Check if a bucket is full. */
-    inline auto IsFull() const -> bool {
-      std::scoped_lock<std::mutex> lock(this->latch_);
-      return list_.size() == size_;
-    }
+    inline auto IsFull() const -> bool { return list_.size() == size_; }
 
     /** @brief Get the local depth of the bucket. */
-    inline auto GetDepth() const -> int {
-      std::scoped_lock<std::mutex> lock(this->latch_);
-      return depth_;
-    }
+    inline auto GetDepth() const -> int { return depth_; }
 
     /** @brief Increment the local depth of a bucket. */
-    inline void IncrementDepth() {
-      std::scoped_lock<std::mutex> lock(this->latch_);
-      depth_++;
-    }
+    inline void IncrementDepth() { depth_++; }
 
-    inline auto GetItems() -> std::list<std::pair<K, V>> & {
-      std::scoped_lock<std::mutex> lock(this->latch_);
-      return list_;
-    }
+    inline auto GetItems() -> std::list<std::pair<K, V>> & { return list_; }
 
     /**
      *
@@ -174,7 +162,6 @@ class ExtendibleHashTable : public HashTable<K, V> {
     size_t size_;
     int depth_;
     std::list<std::pair<K, V>> list_;
-    mutable std::mutex latch_;
   };
 
  private:
