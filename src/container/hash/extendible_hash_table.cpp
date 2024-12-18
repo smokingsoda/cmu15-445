@@ -102,7 +102,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       // Redistribute the buckets
       std::shared_ptr<Bucket> new_bucket = this->RedistributeBucket(target_bucket, index, key, value);
       std::vector<std::shared_ptr<Bucket>> new_dir_;
-      for (size_t i = 0; i < 1 << (this->global_depth_ - 1); i++) {
+      for (size_t i = 0; i < static_cast<size_t>(1 << (this->global_depth_ - 1)); i++) {
         if (i == index) {
           new_dir_.push_back(dir_[i]);
           new_dir_.push_back(new_bucket);
@@ -111,6 +111,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
           new_dir_.push_back(dir_[i]);
         }
       }
+      dir_ = new_dir_;
     } else if (target_bucket->GetDepth() < this->GetGlobalDepthInternal()) {
       target_bucket->IncrementDepth();
       std::shared_ptr<Bucket> new_bucket = this->RedistributeBucket(target_bucket, index, key, value);
@@ -125,14 +126,14 @@ auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucke
   std::shared_ptr<Bucket> new_bucket = std::make_shared<Bucket>(this->bucket_size_, bucket->GetDepth());
   for (auto item = bucket->GetItems().begin(); item != bucket->GetItems().end();) {
     auto current_item_hash = std::hash<K>()(item->first);
-    if (current_item_hash & index * 2) {
+    if (current_item_hash & (index + 1)) {
       new_bucket->Insert(item->first, item->second);
       item = bucket->GetItems().erase(item);
     } else {
       item++;
     }
     auto new_key_hash = std::hash<K>()(key);
-    if (new_key_hash & index * 2) {
+    if (new_key_hash & (index + 1)) {
       new_bucket->Insert(key, value);
     } else {
       bucket->Insert(key, value);
