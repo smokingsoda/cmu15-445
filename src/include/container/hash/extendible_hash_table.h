@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <list>
 #include <memory>
 #include <mutex>  // NOLINT
@@ -180,7 +181,8 @@ class ExtendibleHashTable : public HashTable<K, V> {
    * @brief Redistribute the kv pairs in a full bucket.
    * @param bucket The bucket to be redistributed.
    */
-  auto RedistributeBucket(std::shared_ptr<Bucket> bucket) -> void;
+  auto RedistributeBucket(std::shared_ptr<Bucket> bucket, size_t index, const K &key,
+                          const V &value) -> std::shared_ptr<Bucket>;
 
   /*****************************************************************
    * Must acquire latch_ first before calling the below functions. *
