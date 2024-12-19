@@ -91,33 +91,46 @@ template <typename K, typename V>
 void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
   // UNREACHABLE("not implemented");
   std::scoped_lock<std::mutex> lock(this->latch_);
-  size_t index = this->IndexOf(key);
-  std::shared_ptr<Bucket> target_bucket = this->dir_[index];
-  if (!target_bucket->Insert(key, value)) {
+  while (!this->dir_[this->IndexOf(key)]->Insert(key, value)) {
+    auto index = this->IndexOf(key);
+    auto target_bucket = this->dir_[index];
     if (target_bucket->GetDepth() == this->GetGlobalDepthInternal()) {
       // Now need to increment the global depth
       this->global_depth_ += 1;
       // Increment the local depth of the buckect
       target_bucket->IncrementDepth();
       // Redistribute the buckets
-      std::shared_ptr<Bucket> new_bucket = this->RedistributeBucket(target_bucket, index, key, value);
-      std::vector<std::shared_ptr<Bucket>> new_dir_;
-      for (size_t i = 0; i < static_cast<size_t>(1 << (this->global_depth_ - 1)); i++) {
+      auto target_index = index + (1 << (GetGlobalDepthInternal() - 1));
+      auto new_bucket = this->RedistributeBucket(target_bucket, target_index, key, value);
+      // Make a new dir
+      std::vector<std::shared_ptr<Bucket>> new_dir_(1 << GetGlobalDepthInternal(), nullptr);
+      for (size_t i = 0; i < (1 << (GetGlobalDepthInternal() - 1)); i++) {
         if (i == index) {
-          new_dir_.push_back(dir_[i]);
-          new_dir_.push_back(new_bucket);
+          new_dir_[i] = dir_[i];
+          new_dir_[target_index] = new_bucket;
         } else {
-          new_dir_.push_back(dir_[i]);
-          new_dir_.push_back(dir_[i]);
+          new_dir_[i] = dir_[i];
+          new_dir_[i + (1 << (GetGlobalDepthInternal() - 1))] = dir_[i];
         }
       }
-      dir_ = new_dir_;
-    } else if (target_bucket->GetDepth() < this->GetGlobalDepthInternal()) {
+      this->dir_ = new_dir_;
+    } else {
+      // Increment local depth
       target_bucket->IncrementDepth();
-      std::shared_ptr<Bucket> new_bucket = this->RedistributeBucket(target_bucket, index, key, value);
-      dir_[index + 1] = new_bucket;
+      // Redistrubute buckets
+      auto target_index = index + (1 << (target_bucket->GetDepth() - 1));
+      auto new_bucket = this->RedistributeBucket(target_bucket, target_index, key, value);
+      auto pre_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth() + 1;
+      auto now_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth();
+      // auto first_index = index / target_bucket->GetDepth();
+      for (size_t i = 0; i < ((1 << pre_num_ptr) - (1 << now_num_ptr)); i++) {
+            this->dir_[target_index + i * (1 << target_bucket->GetDepth())] = new_bucket;
+      }
     }
   }
+  auto index = this->IndexOf(key);
+  std::cout << "key: " << key << " inserted in " << index << std::endl;
+  std::cout << "Global depth: " << GetGlobalDepthInternal() << std::endl;
   return;
 }
 template <typename K, typename V>
@@ -126,17 +139,12 @@ auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucke
   std::shared_ptr<Bucket> new_bucket = std::make_shared<Bucket>(this->bucket_size_, bucket->GetDepth());
   for (auto item = bucket->GetItems().begin(); item != bucket->GetItems().end();) {
     auto current_item_hash = std::hash<K>()(item->first);
-    if (current_item_hash & (index + 1)) {
+    auto lower_bits = current_item_hash & ((1 << bucket->GetDepth()) - 1);
+    if (lower_bits == index) {
       new_bucket->Insert(item->first, item->second);
       item = bucket->GetItems().erase(item);
     } else {
       item++;
-    }
-    auto new_key_hash = std::hash<K>()(key);
-    if (new_key_hash & (index + 1)) {
-      new_bucket->Insert(key, value);
-    } else {
-      bucket->Insert(key, value);
     }
   }
   return new_bucket;
