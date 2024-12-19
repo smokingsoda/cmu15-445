@@ -123,15 +123,11 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       auto new_bucket = this->RedistributeBucket(target_bucket, target_index, key, value);
       auto pre_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth() + 1;
       auto now_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth();
-      // auto first_index = index / target_bucket->GetDepth();
       for (size_t i = 0; i < ((1 << pre_num_ptr) - (1 << now_num_ptr)); i++) {
             this->dir_[target_index + i * (1 << target_bucket->GetDepth())] = new_bucket;
       }
     }
   }
-  auto index = this->IndexOf(key);
-  std::cout << "key: " << key << " inserted in " << index << std::endl;
-  std::cout << "Global depth: " << GetGlobalDepthInternal() << std::endl;
   return;
 }
 template <typename K, typename V>
