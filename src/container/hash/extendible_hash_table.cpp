@@ -118,7 +118,8 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       // Increment local depth
       target_bucket->IncrementDepth();
       // Redistrubute buckets
-      auto target_index = index + (1 << (target_bucket->GetDepth() - 1));
+      auto mask = (1 << target_bucket->GetDepth()) - 1;
+      auto target_index = std::hash<K>()(key) & mask;
       auto new_bucket = this->RedistributeBucket(target_bucket, target_index, key, value);
       auto pre_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth() + 1;
       auto now_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth();
