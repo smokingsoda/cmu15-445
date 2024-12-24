@@ -12,9 +12,13 @@
 
 #pragma once
 
+#include <cstddef>
+#include <deque>
 #include <limits>
 #include <list>
+#include <map>
 #include <mutex>  // NOLINT
+#include <stack>
 #include <unordered_map>
 #include <vector>
 
@@ -137,8 +141,10 @@ class LRUKReplacer {
   // Remove maybe_unused if you start using them.
   [[maybe_unused]] size_t current_timestamp_{0};
   [[maybe_unused]] size_t curr_size_{0};
-  [[maybe_unused]] size_t replacer_size_;
-  [[maybe_unused]] size_t k_;
+  size_t replacer_size_;
+  size_t k_;
+  std::vector<std::deque<size_t>> frame_id_deque_vector_;
+  std::vector<bool> evitable_vector_;
   std::mutex latch_;
 };
 
