@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <deque>
 #include <limits>
 #include <list>
 #include <mutex>  // NOLINT
@@ -135,10 +136,16 @@ class LRUKReplacer {
  private:
   // TODO(student): implement me! You can replace these member variables as you like.
   // Remove maybe_unused if you start using them.
-  [[maybe_unused]] size_t current_timestamp_{0};
-  [[maybe_unused]] size_t curr_size_{0};
-  [[maybe_unused]] size_t replacer_size_;
-  [[maybe_unused]] size_t k_;
+  size_t current_timestamp_{0};
+  size_t curr_size_{0};
+  size_t replacer_size_;
+  size_t k_;
+  std::list<frame_id_t> evitable_less_than_k_;
+  std::list<frame_id_t> evitable_equal_k_;
+  std::list<frame_id_t> non_evitable_;
+  std::vector<bool> is_less_than_k_;
+  std::vector<bool> is_evitable_;
+  std::vector<std::deque<size_t>> history_;
   std::mutex latch_;
 };
 
