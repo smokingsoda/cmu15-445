@@ -12,8 +12,12 @@
 
 #pragma once
 
+#include <cstddef>
+#include <deque>
 #include <limits>
 #include <list>
+#include <map>
+#include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
 #include <vector>
@@ -35,6 +39,59 @@ namespace bustub {
  * classical LRU algorithm is used to choose victim.
  */
 class LRUKReplacer {
+  class Frame {
+   public:
+    Frame(frame_id_t id, bool is_init, bool is_evitable, size_t k)
+        : id_(id), is_init_(is_init), is_evitable_(is_evitable), k_(k){};
+
+    bool IsInit() { return this->is_init_; }
+
+    bool IsEvitable() { return this->is_evitable_; }
+
+    bool IsLessThanK() { return this->history_.size() < this->k_; }
+
+    void ClearHistory() { this->history_.clear(); }
+
+    size_t EarlistTimestamp() {
+      BUSTUB_ASSERT(this->history_.size() > 0, "No");
+      return this->history_.back();
+    }
+
+    size_t DifferenceTimestampK() {
+      BUSTUB_ASSERT(!this->IsLessThanK(), "No");
+      return this->history_.front() - this->history_.back();
+    }
+
+    bool AddAccess(size_t time) {
+      this->history_.push_front(time);
+      if (this->history_.size() > this->k_) {
+        this->history_.pop_back();
+        return false;  // It has exceeded
+      } else if (this->history_.size() == this->k_) {
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    void SetInit(bool init) { this->is_init_ = init; }
+
+    size_t GetId() { return this->id_; }
+
+    void SetEvitable(bool set) { this->is_evitable_ = set; }
+
+    std::deque<size_t> GetHistory() {
+      return this->history_;
+    }
+
+   private:
+    frame_id_t id_;
+    bool is_init_;
+    bool is_evitable_;
+    std::deque<size_t> history_;
+    size_t k_;
+  };
+
  public:
   /**
    *
@@ -139,7 +196,8 @@ class LRUKReplacer {
   [[maybe_unused]] size_t curr_size_{0};
   [[maybe_unused]] size_t replacer_size_;
   [[maybe_unused]] size_t k_;
+  std::map<frame_id_t, std::shared_ptr<Frame>> map;
+  std::list<frame_id_t> less_than_k_frames_;
   std::mutex latch_;
 };
-
 }  // namespace bustub
