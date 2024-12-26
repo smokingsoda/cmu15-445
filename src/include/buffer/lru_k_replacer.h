@@ -192,7 +192,7 @@ class LRUKReplacer {
   [[maybe_unused]] size_t replacer_size_;
   [[maybe_unused]] size_t k_;
   std::map<frame_id_t, std::shared_ptr<Frame>> map_;
-  std::list<frame_id_t> less_than_k_frames_;
+  // std::list<frame_id_t> less_than_k_frames_;
   std::mutex latch_;
 };
 }  // namespace bustub
