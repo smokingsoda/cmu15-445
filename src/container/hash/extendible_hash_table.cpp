@@ -16,7 +16,6 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <mutex>
 #include <utility>
 
 #include "container/hash/extendible_hash_table.h"
@@ -103,17 +102,17 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       auto target_index = index + (1 << (GetGlobalDepthInternal() - 1));
       auto new_bucket = this->RedistributeBucket(target_bucket, target_index, key, value);
       // Make a new dir
-      std::vector<std::shared_ptr<Bucket>> new_dir_(1 << GetGlobalDepthInternal(), nullptr);
+      std::vector<std::shared_ptr<Bucket>> new_dir(1 << GetGlobalDepthInternal(), nullptr);
       for (size_t i = 0; i < (1 << (GetGlobalDepthInternal() - 1)); i++) {
         if (i == index) {
-          new_dir_[i] = dir_[i];
-          new_dir_[target_index] = new_bucket;
+          new_dir[i] = dir_[i];
+          new_dir[target_index] = new_bucket;
         } else {
-          new_dir_[i] = dir_[i];
-          new_dir_[i + (1 << (GetGlobalDepthInternal() - 1))] = dir_[i];
+          new_dir[i] = dir_[i];
+          new_dir[i + (1 << (GetGlobalDepthInternal() - 1))] = dir_[i];
         }
       }
-      this->dir_ = new_dir_;
+      this->dir_ = new_dir;
     } else {
       // Increment local depth
       target_bucket->IncrementDepth();
@@ -124,11 +123,10 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       auto pre_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth() + 1;
       auto now_num_ptr = GetGlobalDepthInternal() - target_bucket->GetDepth();
       for (size_t i = 0; i < ((1 << pre_num_ptr) - (1 << now_num_ptr)); i++) {
-            this->dir_[target_index + i * (1 << target_bucket->GetDepth())] = new_bucket;
+        this->dir_[target_index + i * (1 << target_bucket->GetDepth())] = new_bucket;
       }
     }
   }
-  return;
 }
 template <typename K, typename V>
 auto ExtendibleHashTable<K, V>::RedistributeBucket(std::shared_ptr<Bucket> bucket, size_t index, const K &key,

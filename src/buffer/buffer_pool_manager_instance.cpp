@@ -12,7 +12,6 @@
 
 #include "buffer/buffer_pool_manager_instance.h"
 #include <cstddef>
-#include <mutex>
 
 #include "common/config.h"
 #include "common/exception.h"
@@ -54,10 +53,10 @@ auto BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) -> Page * {
   if (this->free_list_.empty()) {
     if (!this->replacer_->Evict(&frame_id)) {
       return nullptr;
-    } else {
-      page = &this->pages_[frame_id];
-      this->page_table_->Remove(page->GetPageId());
     }
+    page = &this->pages_[frame_id];
+    this->page_table_->Remove(page->GetPageId());
+
   } else {
     frame_id = this->free_list_.front();
     page = &this->pages_[frame_id];
@@ -96,7 +95,8 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   if (this->page_table_->Find(page_id, frame_id)) {
     page = &this->pages_[frame_id];
     return page;
-  } else if (!this->free_list_.empty()) {
+  }
+  if (!this->free_list_.empty()) {
     frame_id = this->free_list_.front();
     this->free_list_.pop_front();
     page = &this->pages_[frame_id];

@@ -42,47 +42,42 @@ class LRUKReplacer {
   class Frame {
    public:
     Frame(frame_id_t id, bool is_init, bool is_evitable, size_t k)
-        : id_(id), is_init_(is_init), is_evitable_(is_evitable), k_(k){};
+        : id_(id), is_init_(is_init), is_evitable_(is_evitable), k_(k) {}
 
-    bool IsInit() { return this->is_init_; }
+    auto IsInit() -> bool { return this->is_init_; }
 
-    bool IsEvitable() { return this->is_evitable_; }
+    auto IsEvitable() -> bool { return this->is_evitable_; }
 
-    bool IsLessThanK() { return this->history_.size() < this->k_; }
+    auto IsLessThanK() -> bool { return this->history_.size() < this->k_; }
 
     void ClearHistory() { this->history_.clear(); }
 
-    size_t EarlistTimestamp() {
-      BUSTUB_ASSERT(this->history_.size() > 0, "No");
+    auto EarlistTimestamp() -> size_t {
+      BUSTUB_ASSERT(!this->history_.empty(), "No");
       return this->history_.back();
     }
 
-    size_t DifferenceTimestampK() {
+    auto DifferenceTimestampK() -> size_t {
       BUSTUB_ASSERT(!this->IsLessThanK(), "No");
       return this->history_.front() - this->history_.back();
     }
 
-    bool AddAccess(size_t time) {
+    auto AddAccess(size_t time) -> bool {
       this->history_.push_front(time);
       if (this->history_.size() > this->k_) {
         this->history_.pop_back();
         return false;  // It has exceeded
-      } else if (this->history_.size() == this->k_) {
-        return true;
-      } else {
-        return false;
       }
+      return this->history_.size() == this->k_;
     }
 
     void SetInit(bool init) { this->is_init_ = init; }
 
-    size_t GetId() { return this->id_; }
+    auto GetId() -> frame_id_t { return this->id_; }
 
     void SetEvitable(bool set) { this->is_evitable_ = set; }
 
-    std::deque<size_t> GetHistory() {
-      return this->history_;
-    }
+    auto GetHistory() -> std::deque<size_t> { return this->history_; }
 
    private:
     frame_id_t id_;
@@ -196,7 +191,7 @@ class LRUKReplacer {
   [[maybe_unused]] size_t curr_size_{0};
   [[maybe_unused]] size_t replacer_size_;
   [[maybe_unused]] size_t k_;
-  std::map<frame_id_t, std::shared_ptr<Frame>> map;
+  std::map<frame_id_t, std::shared_ptr<Frame>> map_;
   std::list<frame_id_t> less_than_k_frames_;
   std::mutex latch_;
 };
