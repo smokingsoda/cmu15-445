@@ -12,7 +12,6 @@
 
 #include "buffer/lru_k_replacer.h"
 #include <cstddef>
-#include <iostream>
 #include <limits>
 #include <memory>
 #include "common/config.h"
@@ -38,7 +37,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   frame_id_t result_equal_k = 0;
   for (auto const &it : this->map_) {
     std::shared_ptr<Frame> target_frame = it.second;
-    if (!target_frame->IsInit() || !target_frame->IsEvitable()) {
+    if (!target_frame->IsEvitable()) {
       continue;
     }
     if (target_frame->IsLessThanK() && target_frame->EarlistTimestamp() < earlist_access) {
@@ -49,7 +48,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
     if (target_frame->IsLessThanK()) {
       continue;
     }
-    size_t curr_difference = target_frame->DifferenceTimestampK();
+    size_t curr_difference = this->current_timestamp_ - target_frame->DifferenceTimestampK();
     if (curr_difference > max_difference) {
       max_difference = curr_difference;
       result_equal_k = target_frame->GetId();
@@ -91,8 +90,7 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::scoped_lock<std::mutex> lock(latch_);
   std::shared_ptr<Frame> target_frame = this->map_[frame_id];
-  BUSTUB_ASSERT(target_frame->IsInit(), "No");
-
+  // BUSTUB_ASSERT(target_frame->IsInit(), "No");
   if (target_frame->IsEvitable() && !set_evictable) {
     target_frame->SetEvitable(set_evictable);
     this->curr_size_ -= 1;

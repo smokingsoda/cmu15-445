@@ -59,7 +59,7 @@ class LRUKReplacer {
 
     auto DifferenceTimestampK() -> size_t {
       BUSTUB_ASSERT(!this->IsLessThanK(), "No");
-      return this->history_.front() - this->history_.back();
+      return this->history_.back();
     }
 
     auto AddAccess(size_t time) -> bool {
