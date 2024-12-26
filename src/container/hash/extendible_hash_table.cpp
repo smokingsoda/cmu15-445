@@ -113,6 +113,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
         }
       }
       this->dir_ = new_dir;
+      this->num_buckets_ += 1;
     } else {
       // Increment local depth
       target_bucket->IncrementDepth();
@@ -125,6 +126,7 @@ void ExtendibleHashTable<K, V>::Insert(const K &key, const V &value) {
       for (size_t i = 0; i < ((1 << pre_num_ptr) - (1 << now_num_ptr)); i++) {
         this->dir_[target_index + i * (1 << target_bucket->GetDepth())] = new_bucket;
       }
+      this->num_buckets_ += 1;
     }
   }
 }
