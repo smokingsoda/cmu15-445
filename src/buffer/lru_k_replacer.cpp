@@ -37,7 +37,7 @@ auto LRUKReplacer::Evict(frame_id_t *frame_id) -> bool {
   frame_id_t result_equal_k = 0;
   for (auto const &it : this->map_) {
     std::shared_ptr<Frame> target_frame = it.second;
-    if (!target_frame->IsEvitable()) {
+    if (!target_frame->IsInit() || !target_frame->IsEvitable()) {
       continue;
     }
     if (target_frame->IsLessThanK() && target_frame->EarlistTimestamp() < earlist_access) {
@@ -90,7 +90,9 @@ void LRUKReplacer::RecordAccess(frame_id_t frame_id) {
 void LRUKReplacer::SetEvictable(frame_id_t frame_id, bool set_evictable) {
   std::scoped_lock<std::mutex> lock(latch_);
   std::shared_ptr<Frame> target_frame = this->map_[frame_id];
-  // BUSTUB_ASSERT(target_frame->IsInit(), "No");
+  if (!target_frame->IsInit()) {
+    return;
+  }
   if (target_frame->IsEvitable() && !set_evictable) {
     target_frame->SetEvitable(set_evictable);
     this->curr_size_ -= 1;
