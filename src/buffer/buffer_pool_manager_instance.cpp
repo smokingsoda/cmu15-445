@@ -96,21 +96,20 @@ auto BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) -> Page * {
   if (this->page_table_->Find(page_id, frame_id)) {
     page = &this->pages_[frame_id];
     page->pin_count_ += 1;
-    std::cout << "BP1" << std::endl;
+    this->replacer_->RecordAccess(frame_id);
+    this->replacer_->SetEvictable(frame_id, false);
     return page;
   }
   if (!this->free_list_.empty()) {
     frame_id = this->free_list_.front();
     this->free_list_.pop_front();
     page = &this->pages_[frame_id];
-    std::cout << "BP2" << std::endl;
   } else if (this->replacer_->Evict(&frame_id)) {
     page = &this->pages_[frame_id];
     this->page_table_->Remove(page->GetPageId());
     if (page->IsDirty()) {
       this->disk_manager_->WritePage(page->GetPageId(), page->GetData());
     }
-    std::cout << "BP3" << std::endl;
   } else {
     return nullptr;
   }
