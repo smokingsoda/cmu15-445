@@ -12,6 +12,7 @@
 
 #include <queue>
 
+#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
@@ -41,6 +42,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
   auto ValueAt(int index) const -> ValueType;
+  auto Bisect(KeyType const &key, page_id_t *page_id, KeyComparator const &comparator) const -> bool;
 
  private:
   // Flexible array member for page data.

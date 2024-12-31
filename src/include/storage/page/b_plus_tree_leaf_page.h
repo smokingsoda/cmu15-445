@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "storage/page/b_plus_tree_page.h"
+#include "type/value.h"
 
 namespace bustub {
 
@@ -49,6 +50,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
+  auto Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const -> bool;
 
  private:
   page_id_t next_page_id_;
