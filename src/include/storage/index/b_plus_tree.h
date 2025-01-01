@@ -42,6 +42,9 @@ class BPlusTree {
   explicit BPlusTree(std::string name, BufferPoolManager *buffer_pool_manager, const KeyComparator &comparator,
                      int leaf_max_size = LEAF_PAGE_SIZE, int internal_max_size = INTERNAL_PAGE_SIZE);
 
+  // Accroding to the given key, find the leaf page id
+  auto FindLeaf(const KeyType &key, page_id_t *page_id) -> bool;
+  
   // Returns true if this B+ tree has no keys and values.
   auto IsEmpty() const -> bool;
 

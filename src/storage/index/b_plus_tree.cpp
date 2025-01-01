@@ -1,5 +1,6 @@
 #include <string>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/rid.h"
@@ -7,6 +8,8 @@
 #include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/page/b_plus_tree_page.h"
 #include "storage/page/header_page.h"
+#include "storage/page/page.h"
+#include "type/value.h"
 
 namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
@@ -24,6 +27,44 @@ BPLUSTREE_TYPE::BPlusTree(std::string name, BufferPoolManager *buffer_pool_manag
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
+  Page *root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->GetRootPageId());
+  BPlusTreePage *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type->GetData());
+  if (root_page->IsLeafPage()) {
+    *page_id = root_page->GetPageId();
+    this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+    return true;
+  } else {
+    BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *root_page_internal =
+        static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(root_page);
+    page_id_t target_page_id;
+    if (!root_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
+      // Unpin root page
+      this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+      return false;
+    }
+    // Unpin root page
+    this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    BPlusTreePage *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+    while (!target_page->IsLeafPage()) {
+      BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *target_page_internal =
+          static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(target_page);
+      if (!target_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
+        this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+        return false;
+      }
+      this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+      target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+      target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+    }
+    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+    *page_id = target_page->GetPageId();
+    return true;
+  }
+}
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -34,19 +75,18 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return true; }
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
-  Page *root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->GetRootPageId());
-  BPlusTreePage *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type);
-  if (root_page->IsLeafPage()) {
-    ValueType *value = nullptr;
-    BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *root_page_leaf =
-        static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(root_page);
-    if (root_page_leaf->Bisect(key, value, this->comparator_)) {
-      result->emplace_back(*value);
+  page_id_t target_page_id;
+  if (this->FindLeaf(key, &target_page_id)) {
+    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+    auto *target_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
+    ValueType value;
+    if (target_page_leaf->Bisect(key, &value, this->comparator_)) {
+      result->emplace_back(value);
+      this->buffer_pool_manager_->UnpinPage(target_page_id, false);
       return true;
     }
-  else {
-    
-  }
+    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
   }
   return false;
 }
