@@ -103,6 +103,33 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
+  page_id_t target_page_id;
+  if (this->FindLeaf(key, &target_page_id)) {
+    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+    auto *target_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
+    auto index = target_page_leaf->BisectPosition(key, this->comparator_);
+    KeyType target_key;
+    target_page_leaf->GetKey(index, &target_key);
+    if (this->comparator_(target_key, key) != 0) {
+      target_page_leaf->InsertAt(index + 1, key, value);
+      // Check size
+      if (target_page_leaf->GetSize() >= target_page_leaf->GetMaxSize()) {
+        page_id_t new_page_id;
+        Page *new_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_page_id);
+        auto *new_page_general = reinterpret_cast<BPlusTreePage *>(new_page_with_page_type->GetData());
+        auto *new_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(new_page_general);
+        new_page_leaf->Init(new_page_id, 0, target_page_leaf->GetMaxSize());
+        new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetMinSize());
+        target_page_leaf->SetNextPageId(new_page_id);
+        // Now handle parent node
+      } else {
+        this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+        return true;
+      }
+    }
+  }
+  this->buffer_pool_manager_->UnpinPage(target_page_id, false);
   return false;
 }
 

@@ -9,12 +9,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstddef>
 #include <sstream>
 
 #include "common/exception.h"
+#include "common/macros.h"
 #include "common/rid.h"
-#include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/index/index_iterator.h"
+#include "storage/page/b_plus_tree_leaf_page.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
@@ -61,7 +63,19 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType {
  * Bisect for leaf page
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const -> bool {
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
+                                        KeyComparator const &comparator) const -> bool {
+  // replace with your own code
+  auto index = this->BisectPosition(key, comparator);
+  if (comparator(this->array_[index].first, key) == 0) {
+    *value = this->array_[index].second;
+    return true;
+  }
+  return false;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> size_t {
   // replace with your own code
   auto size = GetSize();
   auto l = -1;
@@ -73,12 +87,44 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value, Ke
     } else if (comparator(this->array_[mid].first, key) > 0) {
       r = mid;
     } else {
-      *value = this->array_[mid].second;
-      return true;
+      return mid;
     }
   }
-  return false;
+  return l;
 }
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKey(int index, KeyType *key_ptr) const -> void {
+  BUSTUB_ASSERT((index) < this->GetSize(), "No");
+  BUSTUB_ASSERT((index) >= 0, "No");
+  *key_ptr = this->array_[index].first;
+};
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertAt(int index, KeyType const &key, ValueType const &value) -> void {
+  for (int i = this->GetSize() - 1; i >= index; i--) {
+    this->array_[i + 1] = this->array_[i];
+  }
+  this->array_[index].first = key;
+  this->array_[index].second = value;
+  this->IncrementSize();
+}
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::IncrementSize() -> void { this->SetSize(this->GetSize() + 1); }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::DecrementSize() -> void { this->SetSize(this->GetSize() - 1); }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page,
+                                                  int index) -> void {
+  for (int i = 0; i + index < from_page->GetSize(); i++) {
+    this->array_[i] = from_page->GetPairAt(i + index);
+    this->IncrementSize();
+    from_page->DecrementSize();
+  }
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetPairAt(int index) const -> MappingType { return this->array_[index]; }
 
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
