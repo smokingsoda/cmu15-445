@@ -67,7 +67,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
                                         KeyComparator const &comparator) const -> bool {
   // replace with your own code
   auto index = this->BisectPosition(key, comparator);
-  if (comparator(this->array_[index].first, key) == 0) {
+  if (comparator(this->array_[index + 1].first, key) == 0) {
     *value = this->array_[index].second;
     return true;
   }
@@ -84,20 +84,12 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparato
     auto mid = (l + r) / 2;
     if (comparator(this->array_[mid].first, key) < 0) {
       l = mid;
-    } else if (comparator(this->array_[mid].first, key) > 0) {
-      r = mid;
     } else {
-      return mid;
+      r = mid;
     }
   }
   return l;
 }
-INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetKey(int index, KeyType *key_ptr) const -> void {
-  BUSTUB_ASSERT((index) < this->GetSize(), "No");
-  BUSTUB_ASSERT((index) >= 0, "No");
-  *key_ptr = this->array_[index].first;
-};
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::InsertAt(int index, KeyType const &key, ValueType const &value) -> void {
   for (int i = this->GetSize() - 1; i >= index; i--) {
@@ -116,7 +108,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::DecrementSize() -> void { this->SetSize(this->G
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page,
                                                   int index) -> void {
-  for (int i = 0; i + index < from_page->GetSize(); i++) {
+  auto limit = from_page->GetSize();
+  for (int i = 0; i + index < limit; i++) {
     this->array_[i] = from_page->GetPairAt(i + index);
     this->IncrementSize();
     from_page->DecrementSize();

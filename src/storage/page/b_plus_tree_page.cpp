@@ -40,7 +40,13 @@ void BPlusTreePage::SetMaxSize(int size) { this->max_size_ = size; }
  * Helper method to get min page size
  * Generally, min page size == max page size / 2
  */
-auto BPlusTreePage::GetMinSize() const -> int { return this->max_size_ / 2; }
+auto BPlusTreePage::GetMinSize() const -> int {
+  if (this->IsRootPage()) {
+    return this->IsLeafPage() ? 1 : 2;
+  } else {
+    return this->GetSize() / 2;
+  }
+}
 
 /*
  * Helper methods to get/set parent page id

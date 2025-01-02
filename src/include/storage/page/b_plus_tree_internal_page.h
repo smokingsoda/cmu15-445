@@ -41,8 +41,17 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const page_id_t &value);
   auto ValueAt(int index) const -> ValueType;
   auto Bisect(KeyType const &key, page_id_t *page_id, KeyComparator const &comparator) const -> bool;
+  auto BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> size_t;
+  auto InsertAt(int index, KeyType const &key, page_id_t const &page_id) -> void;
+  auto IncrementSize() -> void;
+  auto DecrementSize() -> void;
+  auto RedistributeFrom(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
+  auto RemoveAt(int index) -> KeyType;
+  auto UpdateChildrenPointers(BufferPoolManager *bmp) -> void;
+  auto GetPairAt(int index) const -> MappingType;
 
  private:
   // Flexible array member for page data.
