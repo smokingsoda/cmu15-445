@@ -10,6 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "storage/page/b_plus_tree_page.h"
+#include "common/config.h"
 
 namespace bustub {
 

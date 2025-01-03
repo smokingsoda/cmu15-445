@@ -10,10 +10,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <cstddef>
 #include <utility>
 #include <vector>
 
 #include "storage/page/b_plus_tree_page.h"
+#include "type/value.h"
 
 namespace bustub {
 

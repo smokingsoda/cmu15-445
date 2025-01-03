@@ -9,12 +9,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <cstddef>
 #include <sstream>
 
 #include "common/exception.h"
-#include "common/logger.h"
+#include "common/macros.h"
 #include "common/rid.h"
+#include "storage/index/index_iterator.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
 
