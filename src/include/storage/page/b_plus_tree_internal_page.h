@@ -12,7 +12,6 @@
 
 #include <queue>
 
-#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
