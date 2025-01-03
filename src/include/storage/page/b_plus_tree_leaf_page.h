@@ -10,12 +10,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <cstddef>
 #include <utility>
 #include <vector>
 
 #include "storage/page/b_plus_tree_page.h"
-#include "type/value.h"
 
 namespace bustub {
 
@@ -51,14 +49,21 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
-  auto Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const -> bool;
-  auto BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> size_t;
-  auto GetPairAt(int index) const -> MappingType;
-  auto InsertAt(int index, KeyType const &key, ValueType const &value) -> void;
-  auto IncrementSize() -> void;
-  auto DecrementSize() -> void;
-  auto RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
+  auto ValueAt(int index) const -> ValueType;
+  auto KeyIndex(const KeyType &key, const KeyComparator &KeyCmp) -> int;
+  void SetValueAt(int index, const ValueType &value);
+  void InsertAllNodeBefore(BPlusTreeLeafPage *node);
+  void InsertAllNodeAfter(BPlusTreeLeafPage *node);
+  auto GetItem(int index) -> MappingType &;
+  auto DetectInsert(const KeyType &key, const ValueType &value, const KeyComparator &KeyCmp) -> bool;
 
+  auto Lookup(const KeyType &key, ValueType *value, const KeyComparator &KeyCmp) const -> bool;
+  auto Insert(const KeyType &key, const ValueType &value, const KeyComparator &KeyCmp) -> bool;
+  auto RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &KeyCmp) -> bool;
+  void InsertNodeAfter(const KeyType &key, const ValueType &value);
+  void InsertNodeBefore(const KeyType &key, const ValueType &value);
+  void MoveFirstToEndOf(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager_);
+  void MoveLastToFrontOf(BPlusTreeLeafPage *recipient, BufferPoolManager *buffer_pool_manager_);
 
  private:
   page_id_t next_page_id_;
