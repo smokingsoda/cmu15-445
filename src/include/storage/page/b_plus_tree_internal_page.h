@@ -12,6 +12,7 @@
 
 #include <queue>
 
+#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
 namespace bustub {
@@ -40,23 +41,17 @@ class BPlusTreeInternalPage : public BPlusTreePage {
 
   auto KeyAt(int index) const -> KeyType;
   void SetKeyAt(int index, const KeyType &key);
+  void SetValueAt(int index, const page_id_t &value);
   auto ValueAt(int index) const -> ValueType;
-  void SetValueAt(int index, const ValueType &value);
-  auto ValueIndex(const ValueType &value) -> int;
-  void InsertNodeAfter(const KeyType &key, const ValueType &value);
-  void InsertNodeBefore(const KeyType &key, const ValueType &value);
-  void InsertAllNodeBefore(BPlusTreeInternalPage *node);
-  void InsertAllNodeAfter(BPlusTreeInternalPage *node);
-  auto GetItem(int index) -> MappingType &;
-
-  auto Lookup(const KeyType &key, const KeyComparator &KeyCmp, bool leftmost, bool rightmost) -> page_id_t;
-  auto Insert(const KeyType &key, const ValueType &value, const KeyComparator &KeyCmp) -> bool;
-  void Remove(int index);
-  auto RemoveAndReturnOnlyChild() -> page_id_t;
-  void MoveFirstToEndOf(BPlusTreeInternalPage *recipient, BufferPoolManager *buffer_pool_manager_);
-  void CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager_);
-  void MoveLastToFrontOf(BPlusTreeInternalPage *recipient, BufferPoolManager *buffer_pool_manager_);
-  void CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager_);
+  auto Bisect(KeyType const &key, page_id_t *page_id, KeyComparator const &comparator) const -> bool;
+  auto BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> size_t;
+  auto InsertAt(int index, KeyType const &key, page_id_t const &page_id) -> void;
+  auto IncrementSize() -> void;
+  auto DecrementSize() -> void;
+  auto RedistributeFrom(BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
+  auto RemoveAt(int index) -> KeyType;
+  auto UpdateChildrenPointers(BufferPoolManager *bmp) -> void;
+  auto GetPairAt(int index) const -> MappingType;
 
  private:
   // Flexible array member for page data.
