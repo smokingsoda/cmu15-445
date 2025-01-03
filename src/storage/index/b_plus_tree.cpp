@@ -39,7 +39,7 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
     return true;
   } else {
     BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *root_page_internal =
-        static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(root_page);
+        reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(root_page);
     page_id_t target_page_id;
     if (!root_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
       // Unpin root page
@@ -52,7 +52,7 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
     BPlusTreePage *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
     while (!target_page->IsLeafPage()) {
       BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *target_page_internal =
-          static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(target_page);
+          reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(target_page);
       if (!target_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
         this->buffer_pool_manager_->UnpinPage(target_page_id, false);
         return false;
@@ -80,7 +80,8 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   if (this->FindLeaf(key, &target_page_id)) {
     Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
     auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    auto *target_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
+    auto *target_page_leaf =
+        reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
     ValueType value;
     if (target_page_leaf->Bisect(key, &value, this->comparator_)) {
       result->emplace_back(value);
@@ -118,7 +119,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
   if (this->FindLeaf(key, &target_page_id)) {
     Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
     auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    auto *target_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
+    auto *target_page_leaf =
+        reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(target_page_general);
     auto index = target_page_leaf->BisectPosition(key, this->comparator_);
     KeyType target_key = target_page_leaf->KeyAt(index);
     if (this->comparator_(target_key, key) != 0) {
@@ -128,7 +130,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         page_id_t new_page_id;
         Page *new_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_page_id);
         auto *new_page_general = reinterpret_cast<BPlusTreePage *>(new_page_with_page_type->GetData());
-        auto *new_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(new_page_general);
+        auto *new_page_leaf =
+            reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(new_page_general);
         new_page_leaf->Init(new_page_id, target_page_leaf->GetParentPageId(), target_page_leaf->GetMaxSize());
         new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetMinSize());
         target_page_leaf->SetNextPageId(new_page_id);
@@ -157,7 +160,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         Page *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
         auto *parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
         auto *parent_page_internal =
-            static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(parent_page_general);
+            reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(parent_page_general);
         while (parent_page_internal->GetSize() >= parent_page_internal->GetMaxSize()) {
           // Insert the key into parent node
           index = parent_page_internal->BisectPosition(insert_key, this->comparator_);
@@ -168,7 +171,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
           Page *new_parent_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_parent_page_id);
           auto *new_parent_page_general = reinterpret_cast<BPlusTreePage *>(new_parent_page_with_page_type->GetData());
           auto *new_parent_page_internal =
-              static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(new_parent_page_general);
+              reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(new_parent_page_general);
           new_parent_page_internal->Init(new_parent_page_id, parent_page_internal->GetParentPageId(),
                                          parent_page_internal->GetMaxSize());
           // Redistribute keys and values
@@ -185,7 +188,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
             Page *new_root_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_root_page_id);
             auto *new_root_page_general = reinterpret_cast<BPlusTreePage *>(new_root_page_with_page_type->GetData());
             auto *new_root_page_internal =
-                static_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(new_root_page_general);
+                reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(new_root_page_general);
             // Init
             new_root_page_internal->Init(new_root_page_id, INVALID_PAGE_ID, parent_page_internal->GetMaxSize());
             // Insert the last key into root page
