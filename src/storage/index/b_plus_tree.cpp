@@ -108,11 +108,11 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
     BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *root_page =
         reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(root_page_with_page_type->GetData());
-        root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
-        root_page->InsertAt(0, key, value);
-        // Unpin leaf pages
-        this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
-        return true;
+    root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
+    root_page->InsertAt(0, key, value);
+    // Unpin leaf pages
+    this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
+    return true;
   }
   page_id_t target_page_id;
   if (this->FindLeaf(key, &target_page_id)) {
@@ -129,7 +129,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         Page *new_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_page_id);
         auto *new_page_general = reinterpret_cast<BPlusTreePage *>(new_page_with_page_type->GetData());
         auto *new_page_leaf = static_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(new_page_general);
-        new_page_leaf->Init(new_page_id, 0, target_page_leaf->GetMaxSize());
+        new_page_leaf->Init(new_page_id, target_page_leaf->GetParentPageId(), target_page_leaf->GetMaxSize());
         new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetMinSize());
         target_page_leaf->SetNextPageId(new_page_id);
         KeyType insert_key = new_page_leaf->KeyAt(0);
@@ -139,6 +139,21 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         this->buffer_pool_manager_->UnpinPage(new_page_id, true);
         // Now handle parent node
         auto parent_page_id = target_page_leaf->GetParentPageId();
+        // Check if it is a root page
+        if (parent_page_id == INVALID_PAGE_ID) {
+          Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
+          BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *root_page =
+              reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(
+                  root_page_with_page_type->GetData());
+          root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
+          // Update pointers
+          root_page->InsertAt(0, insert_key, target_page_id);
+          root_page->InsertAt(1, insert_key, insert_page_id);
+          root_page->UpdateChildrenPointers(this->buffer_pool_manager_);
+          // Unpin leaf pages
+          this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
+          return true;
+        }
         Page *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
         auto *parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
         auto *parent_page_internal =
@@ -177,6 +192,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
             new_root_page_internal->InsertAt(1, insert_key, new_parent_page_id);
             new_root_page_internal->SetValueAt(0, parent_page_id);
             new_root_page_internal->SetValueAt(1, new_parent_page_id);
+            new_root_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
             this->root_page_id_ = new_root_page_id;
             // Unpin
             this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
@@ -192,7 +208,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
           this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
         }
       } else {
-        this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+        // Insertion without overflow
+        this->buffer_pool_manager_->UnpinPage(target_page_id, true);
         return true;
       }
     }
