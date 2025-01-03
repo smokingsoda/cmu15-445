@@ -84,7 +84,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(int index, KeyType const &key, pag
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BisectPosition(KeyType const &key,
-                                                    KeyComparator const &comparator) const -> size_t {
+                                                    KeyComparator const &comparator) const -> int {
   auto size = this->GetSize();
   auto l = 0;
   auto r = size;

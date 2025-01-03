@@ -27,37 +27,29 @@ auto BPLUSTREE_TYPE::IsEmpty() const -> bool { return root_page_id_ == INVALID_P
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
   Page *root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->GetRootPageId());
-  BPlusTreePage *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type->GetData());
+  auto *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type->GetData());
   if (root_page->IsLeafPage()) {
     *page_id = root_page->GetPageId();
     this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
     return true;
-  } else {
-    auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
-    page_id_t target_page_id;
-    if (!root_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
-      // Unpin root page
-      this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
-      return false;
-    }
-    // Unpin root page
-    this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
-    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
-    BPlusTreePage *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    while (!target_page->IsLeafPage()) {
-      auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
-      if (!target_page_internal->Bisect(key, &target_page_id, this->comparator_)) {
-        this->buffer_pool_manager_->UnpinPage(target_page_id, false);
-        return false;
-      }
-      this->buffer_pool_manager_->UnpinPage(target_page_id, false);
-      target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
-      target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    }
-    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
-    *page_id = target_page->GetPageId();
-    return true;
   }
+  auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
+  page_id_t target_page_id = root_page_internal->BisectPosition(key, this->comparator_);
+  // Unpin root page
+  this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+  Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  while (!target_page->IsLeafPage()) {
+    auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
+    auto new_target_page_id = target_page_internal->BisectPosition(key, this->comparator_);
+    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+    target_page_id = new_target_page_id;
+    target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  }
+  this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+  *page_id = target_page->GetPageId();
+  return true;
 }
 /*****************************************************************************
  * SEARCH
@@ -71,12 +63,14 @@ INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
   page_id_t target_page_id;
   if (this->FindLeaf(key, &target_page_id)) {
+    LOG_INFO("HERE");
+    LOG_DEBUG("Target page id: %d", target_page_id);
     Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
     auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
     auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
     ValueType value;
     if (target_page_leaf->Bisect(key, &value, this->comparator_)) {
-      result->emplace_back(value);
+      result->push_back(value);
       this->buffer_pool_manager_->UnpinPage(target_page_id, false);
       return true;
     }
@@ -99,6 +93,7 @@ INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) -> bool {
   if (this->IsEmpty()) {
     Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
+    UpdateRootPageId(0);
     auto *root_page = reinterpret_cast<LeafPage *>(root_page_with_page_type->GetData());
     root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
     root_page->InsertAt(0, key, value);
@@ -134,6 +129,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         // Check if it is a root page
         if (parent_page_id == INVALID_PAGE_ID) {
           Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
+          UpdateRootPageId(0);
           auto *root_page = reinterpret_cast<InternalPage *>(root_page_with_page_type->GetData());
           root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
           // Update pointers
@@ -146,8 +142,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         }
         Page *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
         auto *parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
-        auto *parent_page_internal =
-            reinterpret_cast<InternalPage *>(parent_page_general);
+        auto *parent_page_internal = reinterpret_cast<InternalPage *>(parent_page_general);
         while (parent_page_internal->GetSize() >= parent_page_internal->GetMaxSize()) {
           // Insert the key into parent node
           index = parent_page_internal->BisectPosition(insert_key, this->comparator_);
@@ -157,8 +152,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
           page_id_t new_parent_page_id;
           Page *new_parent_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_parent_page_id);
           auto *new_parent_page_general = reinterpret_cast<BPlusTreePage *>(new_parent_page_with_page_type->GetData());
-          auto *new_parent_page_internal =
-              reinterpret_cast<InternalPage *>(new_parent_page_general);
+          auto *new_parent_page_internal = reinterpret_cast<InternalPage *>(new_parent_page_general);
           new_parent_page_internal->Init(new_parent_page_id, parent_page_internal->GetParentPageId(),
                                          parent_page_internal->GetMaxSize());
           // Redistribute keys and values
@@ -174,8 +168,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
             page_id_t new_root_page_id;
             Page *new_root_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_root_page_id);
             auto *new_root_page_general = reinterpret_cast<BPlusTreePage *>(new_root_page_with_page_type->GetData());
-            auto *new_root_page_internal =
-                reinterpret_cast<InternalPage *>(new_root_page_general);
+            auto *new_root_page_internal = reinterpret_cast<InternalPage *>(new_root_page_general);
             // Init
             new_root_page_internal->Init(new_root_page_id, INVALID_PAGE_ID, parent_page_internal->GetMaxSize());
             // Insert the last key into root page
@@ -184,6 +177,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
             new_root_page_internal->SetValueAt(1, new_parent_page_id);
             new_root_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
             this->root_page_id_ = new_root_page_id;
+            UpdateRootPageId(0);
             // Unpin
             this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
             this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
@@ -363,8 +357,9 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
     out << "label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
     // Print data
     out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">P=" << leaf->GetPageId() << "</TD></TR>\n";
-    out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">" << "max_size=" << leaf->GetMaxSize()
-        << ",min_size=" << leaf->GetMinSize() << ",size=" << leaf->GetSize() << "</TD></TR>\n";
+    out << "<TR><TD COLSPAN=\"" << leaf->GetSize() << "\">"
+        << "max_size=" << leaf->GetMaxSize() << ",min_size=" << leaf->GetMinSize() << ",size=" << leaf->GetSize()
+        << "</TD></TR>\n";
     out << "<TR>";
     for (int i = 0; i < leaf->GetSize(); i++) {
       out << "<TD>" << leaf->KeyAt(i) << "</TD>\n";
@@ -393,8 +388,9 @@ void BPLUSTREE_TYPE::ToGraph(BPlusTreePage *page, BufferPoolManager *bpm, std::o
     out << "label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\" CELLPADDING=\"4\">\n";
     // Print data
     out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">P=" << inner->GetPageId() << "</TD></TR>\n";
-    out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">" << "max_size=" << inner->GetMaxSize()
-        << ",min_size=" << inner->GetMinSize() << ",size=" << inner->GetSize() << "</TD></TR>\n";
+    out << "<TR><TD COLSPAN=\"" << inner->GetSize() << "\">"
+        << "max_size=" << inner->GetMaxSize() << ",min_size=" << inner->GetMinSize() << ",size=" << inner->GetSize()
+        << "</TD></TR>\n";
     out << "<TR>";
     for (int i = 0; i < inner->GetSize(); i++) {
       out << "<TD PORT=\"p" << inner->ValueAt(i) << "\">";

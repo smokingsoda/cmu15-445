@@ -10,9 +10,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <cstddef>
+#include <iostream>
 #include <sstream>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/macros.h"
 #include "common/rid.h"
 #include "storage/index/index_iterator.h"
@@ -34,7 +36,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   this->SetPageId(page_id);
   this->SetSize(0);
-  this->SetPageType(IndexPageType::INTERNAL_PAGE);
+  this->SetPageType(IndexPageType::LEAF_PAGE);
   this->SetParentPageId(parent_id);
   this->SetMaxSize(max_size);
 }
@@ -67,6 +69,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
                                         KeyComparator const &comparator) const -> bool {
   // replace with your own code
   auto index = this->BisectPosition(key, comparator);
+  LOG_INFO("Why don't you print here?");
+  // std::cout << this->array_[index + 1].first << std::endl;
   if (comparator(this->array_[index + 1].first, key) == 0) {
     *value = this->array_[index].second;
     return true;
@@ -75,7 +79,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> size_t {
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> int {
   // replace with your own code
   auto size = GetSize();
   auto l = -1;
@@ -88,6 +92,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparato
       r = mid;
     }
   }
+  LOG_INFO("l = %d", l);
+  std::cout << this->array_[l + 1].first << std::endl;
   return l;
 }
 INDEX_TEMPLATE_ARGUMENTS
