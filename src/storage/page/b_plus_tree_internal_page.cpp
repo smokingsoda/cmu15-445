@@ -103,7 +103,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpdateChildrenPointers(BufferPoolManager *b
   for (int i = 0; i < this->GetSize(); i++) {
     auto id = this->array_[i].second;
     Page *page_with_page_type = bpm->FetchPage(id);
-    BPlusTreePage *page = reinterpret_cast<BPlusTreePage *>(page_with_page_type);
+    auto *page = reinterpret_cast<BPlusTreePage *>(page_with_page_type);
     bool is_dirty = false;
     if (page->GetParentPageId() != this->GetPageId()) {
         page->SetParentPageId(this->GetPageId());
@@ -123,8 +123,9 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RedistributeFrom(
     BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void {
   auto limit = from_page->GetSize();
-  for (int i = 1; i + index < limit; i++) {
-    this->array_[i] = from_page->GetPairAt(i + index);
+  for (int i = 1; i + index - 1 < limit; i++) {
+     // It should be i + index - 1 here. Important!
+    this->array_[i] = from_page->GetPairAt(i + index - 1);
     this->IncrementSize();
     from_page->DecrementSize();
   }
@@ -132,7 +133,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RedistributeFrom(
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAt(int index) -> KeyType {
   auto return_key = this->KeyAt(index);
-  for (int i = index; i < this->GetSize(); i--) {
+  for (int i = index; i < this->GetSize() - 1; i++) {
     this->array_[i] = this->array_[i + 1];
   }
   this->DecrementSize();

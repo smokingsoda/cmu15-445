@@ -3,6 +3,7 @@
 
 #include "common/exception.h"
 #include "common/logger.h"
+#include "common/macros.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/header_page.h"
@@ -34,7 +35,7 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
     return true;
   }
   auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
-  page_id_t target_page_id = root_page_internal->BisectPosition(key, this->comparator_);
+  page_id_t target_page_id = root_page_internal->ValueAt(root_page_internal->BisectPosition(key, this->comparator_));
   // Unpin root page
   this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
   Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
@@ -63,8 +64,6 @@ INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
   page_id_t target_page_id;
   if (this->FindLeaf(key, &target_page_id)) {
-    LOG_INFO("HERE");
-    LOG_DEBUG("Target page id: %d", target_page_id);
     Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
     auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
     auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
@@ -102,102 +101,120 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     return true;
   }
   page_id_t target_page_id;
-  if (this->FindLeaf(key, &target_page_id)) {
-    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
-    auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
-    auto index = target_page_leaf->BisectPosition(key, this->comparator_);
-    KeyType target_key = target_page_leaf->KeyAt(index);
-    if (this->comparator_(target_key, key) != 0) {
-      target_page_leaf->InsertAt(index + 1, key, value);
-      // Check size
-      if (target_page_leaf->GetSize() >= target_page_leaf->GetMaxSize()) {
-        page_id_t new_page_id;
-        Page *new_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_page_id);
-        auto *new_page_general = reinterpret_cast<BPlusTreePage *>(new_page_with_page_type->GetData());
-        auto *new_page_leaf = reinterpret_cast<LeafPage *>(new_page_general);
-        new_page_leaf->Init(new_page_id, target_page_leaf->GetParentPageId(), target_page_leaf->GetMaxSize());
-        new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetMinSize());
-        target_page_leaf->SetNextPageId(new_page_id);
-        KeyType insert_key = new_page_leaf->KeyAt(0);
-        page_id_t insert_page_id = new_page_id;
-        // Unpin leaf pages
-        this->buffer_pool_manager_->UnpinPage(target_page_id, true);
-        this->buffer_pool_manager_->UnpinPage(new_page_id, true);
-        // Now handle parent node
-        auto parent_page_id = target_page_leaf->GetParentPageId();
-        // Check if it is a root page
-        if (parent_page_id == INVALID_PAGE_ID) {
-          Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
-          UpdateRootPageId(0);
-          auto *root_page = reinterpret_cast<InternalPage *>(root_page_with_page_type->GetData());
-          root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
-          // Update pointers
-          root_page->InsertAt(0, insert_key, target_page_id);
-          root_page->InsertAt(1, insert_key, insert_page_id);
-          root_page->UpdateChildrenPointers(this->buffer_pool_manager_);
-          // Unpin leaf pages
-          this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
-          return true;
-        }
-        Page *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
-        auto *parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
-        auto *parent_page_internal = reinterpret_cast<InternalPage *>(parent_page_general);
-        while (parent_page_internal->GetSize() >= parent_page_internal->GetMaxSize()) {
-          // Insert the key into parent node
-          index = parent_page_internal->BisectPosition(insert_key, this->comparator_);
-          parent_page_internal->InsertAt(index + 1, insert_key, insert_page_id);
-          // Split parent node
-          // New a parent page
-          page_id_t new_parent_page_id;
-          Page *new_parent_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_parent_page_id);
-          auto *new_parent_page_general = reinterpret_cast<BPlusTreePage *>(new_parent_page_with_page_type->GetData());
-          auto *new_parent_page_internal = reinterpret_cast<InternalPage *>(new_parent_page_general);
-          new_parent_page_internal->Init(new_parent_page_id, parent_page_internal->GetParentPageId(),
-                                         parent_page_internal->GetMaxSize());
-          // Redistribute keys and values
-          new_parent_page_internal->RedistributeFrom(parent_page_internal, parent_page_internal->GetMinSize());
-          insert_key = new_parent_page_internal->RemoveAt(1);
-          insert_page_id = new_parent_page_id;
-          // Update child pages pointers
-          parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
-          new_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
-          // Check if it is the root page
-          if (parent_page_internal->IsRootPage()) {
-            // Routine
-            page_id_t new_root_page_id;
-            Page *new_root_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_root_page_id);
-            auto *new_root_page_general = reinterpret_cast<BPlusTreePage *>(new_root_page_with_page_type->GetData());
-            auto *new_root_page_internal = reinterpret_cast<InternalPage *>(new_root_page_general);
-            // Init
-            new_root_page_internal->Init(new_root_page_id, INVALID_PAGE_ID, parent_page_internal->GetMaxSize());
-            // Insert the last key into root page
-            new_root_page_internal->InsertAt(1, insert_key, new_parent_page_id);
-            new_root_page_internal->SetValueAt(0, parent_page_id);
-            new_root_page_internal->SetValueAt(1, new_parent_page_id);
-            new_root_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
-            this->root_page_id_ = new_root_page_id;
-            UpdateRootPageId(0);
-            // Unpin
-            this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
-            this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
-            break;
-          }
-          // Unpin parent pages
-          auto old_parent_page_id = parent_page_id;
-          // Change the variables
-          parent_page_id = parent_page_internal->GetParentPageId();
-          // Unpin parent pages
-          this->buffer_pool_manager_->UnpinPage(old_parent_page_id, true);
-          this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
-        }
-      } else {
-        // Insertion without overflow
-        this->buffer_pool_manager_->UnpinPage(target_page_id, true);
-        return true;
-      }
-    }
+  BUSTUB_ASSERT(this->FindLeaf(key, &target_page_id), "No");
+  Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
+  auto index = target_page_leaf->BisectPosition(key, this->comparator_);
+  KeyType target_key = target_page_leaf->KeyAt(index + 1);
+  if (this->comparator_(target_key, key) == 0) {
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    return false;
   }
+  target_page_leaf->InsertAt(index + 1, key, value);
+  // Check size
+  if (target_page_leaf->GetSize() >= target_page_leaf->GetMaxSize()) {
+    page_id_t new_page_id;
+    Page *new_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_page_id);
+    auto *new_page_general = reinterpret_cast<BPlusTreePage *>(new_page_with_page_type->GetData());
+    auto *new_page_leaf = reinterpret_cast<LeafPage *>(new_page_general);
+    new_page_leaf->Init(new_page_id, target_page_leaf->GetParentPageId(), target_page_leaf->GetMaxSize());
+    // What if it is a root page? Should we use MinSize?
+    if (!target_page_leaf->IsRootPage()) {
+      new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetMinSize());
+    } else {
+      new_page_leaf->RedistributeFrom(target_page_leaf, target_page_leaf->GetSize() / 2);
+    }
+    auto old_next_page_id = target_page_leaf->GetNextPageId();
+    target_page_leaf->SetNextPageId(new_page_id);
+    new_page_leaf->SetNextPageId(old_next_page_id);
+    KeyType insert_key = new_page_leaf->KeyAt(0);
+    page_id_t insert_page_id = new_page_id;
+    // Unpin leaf pages, put it down
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    this->buffer_pool_manager_->UnpinPage(new_page_id, true);
+    // Check if it is a root page
+    if (target_page_leaf->IsRootPage()) {
+      Page *root_page_with_page_type = this->buffer_pool_manager_->NewPage(&this->root_page_id_);
+      UpdateRootPageId(0);
+      auto *root_page = reinterpret_cast<InternalPage *>(root_page_with_page_type->GetData());
+      root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->internal_max_size_);
+      // Update pointers
+      root_page->SetValueAt(0, target_page_id);
+      root_page->SetKeyAt(1, insert_key);
+      root_page->SetValueAt(1, insert_page_id);
+      root_page->IncrementSize();
+      root_page->UpdateChildrenPointers(this->buffer_pool_manager_);
+      // Unpin leaf pages
+      this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
+      return true;
+    }
+    // Now handle parent node
+    auto parent_page_id = target_page_leaf->GetParentPageId();
+    Page *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
+    auto *parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
+    auto *parent_page_internal = reinterpret_cast<InternalPage *>(parent_page_general);
+    while (parent_page_internal->GetSize() >= parent_page_internal->GetMaxSize()) {
+      // Insert the key into parent node
+      index = parent_page_internal->BisectPosition(insert_key, this->comparator_);
+      parent_page_internal->InsertAt(index + 1, insert_key, insert_page_id);
+      // Split parent node
+      // New a parent page
+      page_id_t new_parent_page_id;
+      Page *new_parent_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_parent_page_id);
+      auto *new_parent_page_general = reinterpret_cast<BPlusTreePage *>(new_parent_page_with_page_type->GetData());
+      auto *new_parent_page_internal = reinterpret_cast<InternalPage *>(new_parent_page_general);
+      new_parent_page_internal->Init(new_parent_page_id, parent_page_internal->GetParentPageId(),
+                                     parent_page_internal->GetMaxSize());
+      // Redistribute keys and values
+      new_parent_page_internal->RedistributeFrom(parent_page_internal, parent_page_internal->GetSize() / 2); // Here is bug
+      insert_key = new_parent_page_internal->RemoveAt(1);
+      
+      insert_page_id = new_parent_page_id;
+      // Update child pages pointers
+      parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+      new_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+      // Check if it is the root page
+      if (parent_page_internal->IsRootPage()) {
+        // Routine
+        page_id_t new_root_page_id;
+        Page *new_root_page_with_page_type = this->buffer_pool_manager_->NewPage(&new_root_page_id);
+        auto *new_root_page_general = reinterpret_cast<BPlusTreePage *>(new_root_page_with_page_type->GetData());
+        auto *new_root_page_internal = reinterpret_cast<InternalPage *>(new_root_page_general);
+        // Init
+        new_root_page_internal->Init(new_root_page_id, INVALID_PAGE_ID, parent_page_internal->GetMaxSize());
+        // Insert the last key into root page
+        new_root_page_internal->InsertAt(1, insert_key, new_parent_page_id);
+        new_root_page_internal->SetValueAt(0, parent_page_id);
+        new_root_page_internal->SetValueAt(1, new_parent_page_id);
+        new_root_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+        this->root_page_id_ = new_root_page_id;
+        UpdateRootPageId(0);
+        // Unpin
+        this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
+        this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
+        break;
+      }
+      // Unpin parent pages
+      auto old_parent_page_id = parent_page_id;
+      // Change the variables
+      parent_page_id = parent_page_internal->GetParentPageId();
+      // Unpin parent pages
+      this->buffer_pool_manager_->UnpinPage(old_parent_page_id, true);
+      this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
+      parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
+      parent_page_general = reinterpret_cast<BPlusTreePage *>(parent_page_with_page_type->GetData());
+      parent_page_internal = reinterpret_cast<InternalPage *>(parent_page_general);
+    }
+    index = parent_page_internal->BisectPosition(insert_key, this->comparator_);
+    parent_page_internal->InsertAt(index + 1, insert_key, insert_page_id);
+    this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
+    return true;
+  }
+  // Insertion without overflow
+  this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+  return true;
+
   this->buffer_pool_manager_->UnpinPage(target_page_id, false);
   return false;
 }

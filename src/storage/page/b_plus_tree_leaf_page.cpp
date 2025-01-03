@@ -69,7 +69,6 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
                                         KeyComparator const &comparator) const -> bool {
   // replace with your own code
   auto index = this->BisectPosition(key, comparator);
-  LOG_INFO("Why don't you print here?");
   // std::cout << this->array_[index + 1].first << std::endl;
   if (comparator(this->array_[index + 1].first, key) == 0) {
     *value = this->array_[index].second;
@@ -92,8 +91,6 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparato
       r = mid;
     }
   }
-  LOG_INFO("l = %d", l);
-  std::cout << this->array_[l + 1].first << std::endl;
   return l;
 }
 INDEX_TEMPLATE_ARGUMENTS
