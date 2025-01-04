@@ -1,6 +1,7 @@
 
 #include <string>
 
+#include "common/config.h"
 #include "common/exception.h"
 #include "common/logger.h"
 #include "common/macros.h"
@@ -42,7 +43,8 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
   auto *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
   while (!target_page->IsLeafPage()) {
     auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
-    auto new_target_page_id = target_page_internal->BisectPosition(key, this->comparator_);
+    auto new_target_page_id =
+        target_page_internal->ValueAt(target_page_internal->BisectPosition(key, this->comparator_));
     this->buffer_pool_manager_->UnpinPage(target_page_id, false);
     target_page_id = new_target_page_id;
     target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
@@ -63,18 +65,19 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
   page_id_t target_page_id;
-  if (this->FindLeaf(key, &target_page_id)) {
-    Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
-    auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
-    auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
-    ValueType value;
-    if (target_page_leaf->Bisect(key, &value, this->comparator_)) {
-      result->push_back(value);
-      this->buffer_pool_manager_->UnpinPage(target_page_id, false);
-      return true;
-    }
+  BUSTUB_ASSERT((this->FindLeaf(key, &target_page_id)), "No");
+  Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
+  ValueType value;
+  auto index = target_page_leaf->BisectPosition(key, this->comparator_);
+  if (this->comparator_(target_page_leaf->KeyAt(index + 1), key) == 0) {
+    value = target_page_leaf->ValueAt(index + 1);
+    result->push_back(value);
     this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+    return true;
   }
+  this->buffer_pool_manager_->UnpinPage(target_page_id, false);
   return false;
 }
 
@@ -95,6 +98,7 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
     UpdateRootPageId(0);
     auto *root_page = reinterpret_cast<LeafPage *>(root_page_with_page_type->GetData());
     root_page->Init(this->GetRootPageId(), INVALID_PAGE_ID, this->leaf_max_size_);
+    root_page->SetNextPageId(INVALID_PAGE_ID);
     root_page->InsertAt(0, key, value);
     // Unpin leaf pages
     this->buffer_pool_manager_->UnpinPage(root_page_id_, true);
@@ -167,9 +171,9 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
       new_parent_page_internal->Init(new_parent_page_id, parent_page_internal->GetParentPageId(),
                                      parent_page_internal->GetMaxSize());
       // Redistribute keys and values
-      new_parent_page_internal->RedistributeFrom(parent_page_internal, parent_page_internal->GetSize() / 2); // Here is bug
-      insert_key = new_parent_page_internal->RemoveAt(1);
-      
+      new_parent_page_internal->RedistributeFrom(parent_page_internal,
+                                                 parent_page_internal->GetSize() / 2);  // Here is bug
+      insert_key = new_parent_page_internal->Rearrange();
       insert_page_id = new_parent_page_id;
       // Update child pages pointers
       parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
@@ -193,7 +197,8 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
         // Unpin
         this->buffer_pool_manager_->UnpinPage(parent_page_id, true);
         this->buffer_pool_manager_->UnpinPage(new_parent_page_id, true);
-        break;
+        this->buffer_pool_manager_->UnpinPage(new_root_page_id, true);
+        return true;
       }
       // Unpin parent pages
       auto old_parent_page_id = parent_page_id;

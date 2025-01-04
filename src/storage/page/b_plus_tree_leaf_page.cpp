@@ -61,6 +61,13 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const -> KeyType {
   return k_v.first;
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType {
+  // replace with your own code
+  MappingType k_v = this->array_[index];
+  return k_v.second;
+}
+
 /*
  * Bisect for leaf page
  */

@@ -51,6 +51,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto GetNextPageId() const -> page_id_t;
   void SetNextPageId(page_id_t next_page_id);
   auto KeyAt(int index) const -> KeyType;
+  auto ValueAt(int index) const -> ValueType;
   auto Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const -> bool;
   auto BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> int;
   auto GetPairAt(int index) const -> MappingType;

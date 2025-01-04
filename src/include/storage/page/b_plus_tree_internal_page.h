@@ -52,6 +52,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto RemoveAt(int index) -> KeyType;
   auto UpdateChildrenPointers(BufferPoolManager *bmp) -> void;
   auto GetPairAt(int index) const -> MappingType;
+  auto Rearrange() -> KeyType;
 
  private:
   // Flexible array member for page data.

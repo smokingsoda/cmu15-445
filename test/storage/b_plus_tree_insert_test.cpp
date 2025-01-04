@@ -83,7 +83,7 @@ TEST(BPlusTreeTests, InsertTest2) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys = {1, 2, 3, 4};
+  std::vector<int64_t> keys = {1, 2, 3, 4, 5};
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
     rid.Set(static_cast<int32_t>(key >> 32), value);
@@ -102,22 +102,22 @@ TEST(BPlusTreeTests, InsertTest2) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  // int64_t size = 0;
-  // bool is_present;
+  int64_t size = 0;
+  bool is_present;
 
-  // for (auto key : keys) {
-  //   rids.clear();
-  //   index_key.SetFromInteger(key);
-  //   is_present = tree.GetValue(index_key, &rids);
+  for (auto key : keys) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    is_present = tree.GetValue(index_key, &rids);
 
-  //   EXPECT_EQ(is_present, true);
-  //   EXPECT_EQ(rids.size(), 1);
-  //   EXPECT_EQ(rids[0].GetPageId(), 0);
-  //   EXPECT_EQ(rids[0].GetSlotNum(), key);
-  //   size = size + 1;
-  // }
+    EXPECT_EQ(is_present, true);
+    EXPECT_EQ(rids.size(), 1);
+    EXPECT_EQ(rids[0].GetPageId(), 0);
+    EXPECT_EQ(rids[0].GetSlotNum(), key);
+    size = size + 1;
+  }
 
-  // EXPECT_EQ(size, keys.size());
+  EXPECT_EQ(size, keys.size());
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;

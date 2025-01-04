@@ -83,8 +83,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertAt(int index, KeyType const &key, pag
 }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BisectPosition(KeyType const &key,
-                                                    KeyComparator const &comparator) const -> int {
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> int {
   auto size = this->GetSize();
   auto l = 0;
   auto r = size;
@@ -106,8 +105,8 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::UpdateChildrenPointers(BufferPoolManager *b
     auto *page = reinterpret_cast<BPlusTreePage *>(page_with_page_type);
     bool is_dirty = false;
     if (page->GetParentPageId() != this->GetPageId()) {
-        page->SetParentPageId(this->GetPageId());
-        is_dirty = true;
+      page->SetParentPageId(this->GetPageId());
+      is_dirty = true;
     }
     bpm->UnpinPage(id, is_dirty);
   }
@@ -124,7 +123,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RedistributeFrom(
     BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void {
   auto limit = from_page->GetSize();
   for (int i = 1; i + index - 1 < limit; i++) {
-     // It should be i + index - 1 here. Important!
+    // It should be i + index - 1 here. Important!
     this->array_[i] = from_page->GetPairAt(i + index - 1);
     this->IncrementSize();
     from_page->DecrementSize();
@@ -137,6 +136,14 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAt(int index) -> KeyType {
     this->array_[i] = this->array_[i + 1];
   }
   this->DecrementSize();
+  return return_key;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Rearrange() -> KeyType {
+  auto return_key = this->array_[1].first;
+  this->array_[0].second = this->array_[1].second;
+  this->RemoveAt(1);
   return return_key;
 }
 
