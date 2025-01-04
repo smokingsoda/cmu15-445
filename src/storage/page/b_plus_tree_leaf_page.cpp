@@ -129,6 +129,9 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::RedistributeFrom(BPlusTreeLeafPage<KeyType, Val
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetPairAt(int index) const -> MappingType { return this->array_[index]; }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::GetPairAt(int index) -> MappingType & { return this->array_[index]; }
+
 template class BPlusTreeLeafPage<GenericKey<4>, RID, GenericComparator<4>>;
 template class BPlusTreeLeafPage<GenericKey<8>, RID, GenericComparator<8>>;
 template class BPlusTreeLeafPage<GenericKey<16>, RID, GenericComparator<16>>;

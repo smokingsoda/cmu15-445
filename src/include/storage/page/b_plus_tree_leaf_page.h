@@ -55,6 +55,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const -> bool;
   auto BisectPosition(KeyType const &key, KeyComparator const &comparator) const -> int;
   auto GetPairAt(int index) const -> MappingType;
+  auto GetPairAt(int index) -> MappingType &;
   auto InsertAt(int index, KeyType const &key, ValueType const &value) -> void;
   auto IncrementSize() -> void;
   auto DecrementSize() -> void;

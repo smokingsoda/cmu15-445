@@ -237,6 +237,33 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
 
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::LeftMostLeaf() -> page_id_t {
+  auto root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->GetRootPageId());
+  auto *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type->GetData());
+  if (root_page->IsLeafPage()) {
+    auto root_page_id = root_page->GetPageId();
+    this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+    return root_page_id;
+  }
+  auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
+  auto target_page_id = root_page_internal->ValueAt(0);
+  this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+  auto target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  while (!target_page->IsLeafPage()) {
+    auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
+    target_page_id = target_page_internal->ValueAt(0);
+    this->buffer_pool_manager_->UnpinPage(target_page->GetPageId(), false);
+    target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  }
+  auto ret = target_page->GetPageId();
+  this->buffer_pool_manager_->UnpinPage(target_page->GetPageId(), false);
+  return ret;
+}
+
+
 /*****************************************************************************
  * INDEX ITERATOR
  *****************************************************************************/
@@ -246,7 +273,10 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { 
+  auto left_most_page_id = this->LeftMostLeaf();
+  return INDEXITERATOR_TYPE(left_most_page_id, buffer_pool_manager_, 0);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
