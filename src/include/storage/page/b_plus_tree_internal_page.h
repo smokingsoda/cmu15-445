@@ -12,6 +12,7 @@
 
 #include <queue>
 
+#include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 
@@ -53,6 +54,7 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto UpdateChildrenPointers(BufferPoolManager *bmp) -> void;
   auto GetPairAt(int index) const -> MappingType;
   auto Rearrange() -> KeyType;
+  auto GetSibling(const KeyType &key, KeyComparator &cmp, page_id_t *sibling_page_id, bool *is_right, BufferPoolManager *bpm, int *target_index, int *sibling_index) const -> bool;
 
  private:
   // Flexible array member for page data.

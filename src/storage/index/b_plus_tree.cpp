@@ -236,7 +236,84 @@ auto BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transact
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+  if (this->IsEmpty()) {
+    return;
+  }
+  page_id_t target_page_id;
+  this->FindLeaf(key, &target_page_id);
+  auto *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_with_page_type->GetData());
+  auto index = target_page_leaf->BisectPosition(key, this->comparator_);
+  if (this->comparator_(target_page_leaf->KeyAt(index + 1), key) != 0) {
+    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+    return;
+  }
+  target_page_leaf->RemoveAt(index + 1);
+  if (target_page_leaf->IsRootPage()) {
+    if (target_page_leaf->GetSize() == 0) {
+      this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+      this->buffer_pool_manager_->DeletePage(target_page_leaf->GetPageId());
+      this->root_page_id_ = INVALID_PAGE_ID;
+      return;
+    }
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    return;
+  }
+  if (target_page_leaf->GetSize() >= target_page_leaf->GetMinSize()) {
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    return;
+  }
+  // Steal keys from sibling
+  page_id_t parent_page_id = target_page_leaf->GetParentPageId();
+  auto *parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(parent_page_id);
+  auto *parent_page_internal = reinterpret_cast<InternalPage *>(parent_page_with_page_type->GetData());
+  page_id_t sibling_page_id;
+  bool is_right;
+  int target_index_in_parent;
+  int sibling_index_in_parent;
+  auto is_enough =
+      parent_page_internal->GetSibling(key, this->comparator_, &sibling_page_id, &is_right, this->buffer_pool_manager_, &target_index_in_parent, &sibling_index_in_parent);
+  auto *sibling_page_with_page_type = this->buffer_pool_manager_->FetchPage(sibling_page_id);
+  auto *sibling_page_leaf = reinterpret_cast<LeafPage *>(sibling_page_with_page_type->GetData());
+  if (is_enough) {
+    int stolen_index;
+    int insert_index;
+    if (is_right) {
+      stolen_index = 0;
+      insert_index = target_page_leaf->GetSize() - 1;
+    } else {
+      stolen_index = sibling_page_leaf->GetSize() - 1;
+      insert_index = 0;
+    }
+    auto stolen_value = sibling_page_leaf->ValueAt(stolen_index);
+    auto stolen_key = sibling_page_leaf->RemoveAt(stolen_index);
+    target_page_leaf->InsertAt(insert_index, stolen_key, stolen_value);
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+  }
+  // Merge
+  LeafPage *new_leaf;
+  int remove_index_in_parent;
+  if (is_right) {
+    target_page_leaf->MergeWith(sibling_page_leaf, is_right);
+    this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+    this->buffer_pool_manager_->DeletePage(sibling_page_id);
+    new_leaf = target_page_leaf;
+    remove_index_in_parent = sibling_index_in_parent;
+  } else {
+    target_page_leaf->MergeWith(sibling_page_leaf, is_right);
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    this->buffer_pool_manager_->DeletePage(target_page_id);
+    new_leaf = sibling_page_leaf;
+    remove_index_in_parent = target_index_in_parent;
+  }
+  // Now handle parent page
+  while (parent_page_internal->GetSize() - 1 < parent_page_internal->GetMinSize()) {
+    
+  }
+  
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::LeftMostLeaf() -> page_id_t {

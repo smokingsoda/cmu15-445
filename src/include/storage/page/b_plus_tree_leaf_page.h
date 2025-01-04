@@ -59,7 +59,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto InsertAt(int index, KeyType const &key, ValueType const &value) -> void;
   auto IncrementSize() -> void;
   auto DecrementSize() -> void;
+  auto RemoveAt(int index) -> KeyType;
   auto RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
+  auto MergeWith(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, bool is_right) -> void
 
 
  private:

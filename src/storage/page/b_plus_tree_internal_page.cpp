@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "common/exception.h"
 #include "storage/page/b_plus_tree_internal_page.h"
@@ -149,6 +150,54 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::Rearrange() -> KeyType {
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetPairAt(int index) const -> MappingType { return this->array_[index]; }
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetSibling(const KeyType &key, KeyComparator &cmp, page_id_t *sibling_page_id,
+                                                bool *is_right, BufferPoolManager *bpm, int *target_index,
+                                                int *sibling_index) const -> bool {
+  // Use the right sibling as default
+  // if the size is enough, return true
+  auto index = this->BisectPosition(key, cmp);
+  *target_index = index;
+  if (index == this->GetSize() - 1) {
+    *sibling_index = index - 1;
+    *sibling_page_id = this->ValueAt(index - 1);
+    *is_right = false;
+    Page *sibling_page = bpm->FetchPage(*sibling_page_id);
+    auto *sibling = reinterpret_cast<BPlusTreePage *>(sibling_page->GetData());
+    if (sibling->GetSize() - 1 >= sibling->GetMinSize()) {
+      bpm->UnpinPage(*sibling_page_id, false);
+      return true;
+    }
+    bpm->UnpinPage(*sibling_page_id, false);
+    return false;
+  }
+  auto left_id = this->ValueAt(index - 1);
+  auto right_id = this->ValueAt(index + 1);
+  Page *left_page = bpm->FetchPage(left_id);
+  Page *right_page = bpm->FetchPage(right_id);
+  auto left = reinterpret_cast<BPlusTreePage *>(left_page->GetData());
+  auto right = reinterpret_cast<BPlusTreePage *>(right_page->GetData());
+  if (right->GetSize() - 1 >= right->GetMinSize()) {
+    *sibling_index = index + 1;
+    *is_right = true;
+    bpm->UnpinPage(left_id, false);
+    bpm->UnpinPage(right_id, false);
+    return true;
+  }
+  if (left->GetSize() - 1 >= left->GetMinSize()) {
+    *sibling_index = index - 1;
+    *is_right = false;
+    bpm->UnpinPage(left_id, false);
+    bpm->UnpinPage(right_id, false);
+    return true;
+  }
+  *sibling_index = index + 1;
+  *is_right = true;
+  bpm->UnpinPage(left_id, false);
+  bpm->UnpinPage(right_id, false);
+  return false;
+}
 
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;

@@ -72,8 +72,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::ValueAt(int index) const -> ValueType {
  * Bisect for leaf page
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value,
-                                        KeyComparator const &comparator) const -> bool {
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::Bisect(KeyType const &key, ValueType *value, KeyComparator const &comparator) const
+    -> bool {
   // replace with your own code
   auto index = this->BisectPosition(key, comparator);
   // std::cout << this->array_[index + 1].first << std::endl;
@@ -116,6 +116,16 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::DecrementSize() -> void { this->SetSize(this->GetSize() - 1); }
 
 INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAt(int index) -> KeyType {
+  auto return_key = this->KeyAt(index);
+  for (int i = index; i < this->GetSize() - 1; i++) {
+    this->array_[i] = this->array_[i + 1];
+  }
+  this->DecrementSize();
+  return return_key;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page,
                                                   int index) -> void {
   auto limit = from_page->GetSize();
@@ -124,6 +134,26 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::RedistributeFrom(BPlusTreeLeafPage<KeyType, Val
     this->IncrementSize();
     from_page->DecrementSize();
   }
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_LEAF_PAGE_TYPE::MergeWith(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page,
+                                           bool is_right) -> void {
+  auto limit = from_page->GetSize();
+  auto offset = this->GetSize();
+  if (is_right) {
+    for (int i = 0; i < limit; i++) {
+      this->array_[i + offset] = from_page->GetPairAt(i);
+      this->IncrementSize();
+      from_page->DecrementSize();
+    }
+    BUSTUB_ASSERT(this->GetSize() == limit + offset, "No");
+    BUSTUB_ASSERT(from_page->GetSize() == 0, "No");
+    return;
+  }
+  from_page->MergeWith(this, true);
+  BUSTUB_ASSERT(this->GetSize() == 0, "No");
+  BUSTUB_ASSERT(from_page->GetSize() == limit + offset, "No");
 }
 
 INDEX_TEMPLATE_ARGUMENTS
