@@ -7,6 +7,7 @@
 #include "common/macros.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
+#include "storage/page/b_plus_tree_page.h"
 #include "storage/page/header_page.h"
 
 namespace bustub {
@@ -263,6 +264,31 @@ auto BPLUSTREE_TYPE::LeftMostLeaf() -> page_id_t {
   return ret;
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto BPLUSTREE_TYPE::RightMostLeaf() -> page_id_t {
+  auto root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->GetRootPageId());
+  auto *root_page = reinterpret_cast<BPlusTreePage *>(root_page_with_page_type->GetData());
+  if (root_page->IsLeafPage()) {
+    auto root_page_id = root_page->GetPageId();
+    this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+    return root_page_id;
+  }
+  auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
+  auto target_page_id = root_page_internal->ValueAt(root_page_internal->GetSize() - 1);
+  this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
+  auto target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+  auto *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  while (!target_page->IsLeafPage()) {
+    auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
+    target_page_id = target_page_internal->ValueAt(target_page_internal->GetSize() - 1);
+    this->buffer_pool_manager_->UnpinPage(target_page->GetPageId(), false);
+    target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
+    target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
+  }
+  auto ret = target_page->GetPageId();
+  this->buffer_pool_manager_->UnpinPage(target_page->GetPageId(), false);
+  return ret;
+}
 
 /*****************************************************************************
  * INDEX ITERATOR
@@ -273,7 +299,7 @@ auto BPLUSTREE_TYPE::LeftMostLeaf() -> page_id_t {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE { 
+auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
   auto left_most_page_id = this->LeftMostLeaf();
   return INDEXITERATOR_TYPE(left_most_page_id, buffer_pool_manager_, 0);
 }
@@ -284,7 +310,15 @@ auto BPLUSTREE_TYPE::Begin() -> INDEXITERATOR_TYPE {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE {
+  page_id_t page_id;
+  this->FindLeaf(key, &page_id);
+  auto *page = this->buffer_pool_manager_->FetchPage(page_id);
+  auto *leaf_page = reinterpret_cast<LeafPage *>(page->GetData());
+  auto index = leaf_page->BisectPosition(key, this->comparator_);
+  this->buffer_pool_manager_->UnpinPage(page_id, false);
+  return INDEXITERATOR_TYPE(page_id, buffer_pool_manager_, index + 1);
+}
 
 /*
  * Input parameter is void, construct an index iterator representing the end
@@ -292,7 +326,14 @@ auto BPLUSTREE_TYPE::Begin(const KeyType &key) -> INDEXITERATOR_TYPE { return IN
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE { return INDEXITERATOR_TYPE(); }
+auto BPLUSTREE_TYPE::End() -> INDEXITERATOR_TYPE {
+  auto right_most_page_id = this->RightMostLeaf();
+  auto *page = this->buffer_pool_manager_->FetchPage(right_most_page_id);
+  auto *leaf_page = reinterpret_cast<BPlusTreePage *>(page->GetData());
+  auto size = leaf_page->GetSize();
+  this->buffer_pool_manager_->UnpinPage(right_most_page_id, false);
+  return INDEXITERATOR_TYPE(right_most_page_id, buffer_pool_manager_, size);
+}
 
 /**
  * @return Page id of the root of this tree

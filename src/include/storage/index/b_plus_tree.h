@@ -64,6 +64,9 @@ class BPlusTree {
   // Return the leftmost leaf page id
   auto LeftMostLeaf() -> page_id_t;
 
+  // Return the rightmost leaf page id
+  auto RightMostLeaf() -> page_id_t;
+
   // index iterator
   auto Begin() -> INDEXITERATOR_TYPE;
   auto Begin(const KeyType &key) -> INDEXITERATOR_TYPE;

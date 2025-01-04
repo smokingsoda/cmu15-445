@@ -1,12 +1,12 @@
 /**
  * index_iterator.cpp
  */
+#include "storage/index/index_iterator.h"
 #include <cassert>
 #include <stdexcept>
 #include "buffer/buffer_pool_manager.h"
 #include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
-#include "storage/index/index_iterator.h"
 
 #define INDEX_TEMPLATE_ARGUMENTS template <typename KeyType, typename ValueType, typename KeyComparator>
 #define INDEXITERATOR_TYPE IndexIterator<KeyType, ValueType, KeyComparator>
@@ -65,6 +65,11 @@ auto INDEXITERATOR_TYPE::operator++() -> INDEXITERATOR_TYPE & {
   this->index_ += 1;
   this->bpm_->UnpinPage(leaf_id_, false);
   return *this;
+}
+
+INDEX_TEMPLATE_ARGUMENTS
+auto INDEXITERATOR_TYPE::operator!=(const IndexIterator &itr) const -> bool {
+  return this->leaf_id_ != itr.leaf_id_ || this->index_ != itr.index_ || this->bpm_ != itr.bpm_;
 }
 
 template class IndexIterator<GenericKey<4>, RID, GenericComparator<4>>;
