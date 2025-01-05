@@ -273,7 +273,8 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   int target_index_in_parent;
   int sibling_index_in_parent;
   auto is_enough =
-      parent_page_internal->GetSibling(key, this->comparator_, &sibling_page_id, &is_right, this->buffer_pool_manager_, &target_index_in_parent, &sibling_index_in_parent);
+      parent_page_internal->GetSibling(key, this->comparator_, &sibling_page_id, &is_right, this->buffer_pool_manager_,
+                                       &target_index_in_parent, &sibling_index_in_parent);
   auto *sibling_page_with_page_type = this->buffer_pool_manager_->FetchPage(sibling_page_id);
   auto *sibling_page_leaf = reinterpret_cast<LeafPage *>(sibling_page_with_page_type->GetData());
   if (is_enough) {
@@ -295,24 +296,62 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   // Merge
   LeafPage *new_leaf;
   int remove_index_in_parent;
+  page_id_t next_page_id;
   if (is_right) {
     target_page_leaf->MergeWith(sibling_page_leaf, is_right);
+    next_page_id = sibling_page_leaf->GetNextPageId();
+    target_page_leaf->SetNextPageId(next_page_id);
     this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
     this->buffer_pool_manager_->DeletePage(sibling_page_id);
     new_leaf = target_page_leaf;
     remove_index_in_parent = sibling_index_in_parent;
   } else {
     target_page_leaf->MergeWith(sibling_page_leaf, is_right);
+    next_page_id = target_page_leaf->GetNextPageId();
+    sibling_page_leaf->SetNextPageId(next_page_id);
     this->buffer_pool_manager_->UnpinPage(target_page_id, true);
     this->buffer_pool_manager_->DeletePage(target_page_id);
     new_leaf = sibling_page_leaf;
     remove_index_in_parent = target_index_in_parent;
   }
   // Now handle parent page
-  while (parent_page_internal->GetSize() - 1 < parent_page_internal->GetMinSize()) {
-    
+  parent_page_internal->RemoveAt(remove_index_in_parent);
+  while (parent_page_internal->GetSize() < parent_page_internal->GetMinSize()) {
+    if (parent_page_internal->IsRootPage()) {
+      // Do something with root page
+    }
+    // Find which sibling to merge with
+    page_id_t grand_parent_page_id = parent_page_internal->GetParentPageId();
+    auto *grand_parent_page_with_page_type = this->buffer_pool_manager_->FetchPage(grand_parent_page_id);
+    auto *grand_parent_page_internal = reinterpret_cast<InternalPage *>(grand_parent_page_with_page_type->GetData());
+    is_enough = grand_parent_page_internal->GetSibling(key, this->comparator_, &sibling_page_id, &is_right,
+                                                       this->buffer_pool_manager_, &target_index_in_parent,
+                                                       &sibling_index_in_parent);
+    if (is_enough) {
+      // Steal keys from sibling
+      auto *sibling_page_with_page_type = this->buffer_pool_manager_->FetchPage(sibling_page_id);
+      auto *sibling_page_internal = reinterpret_cast<InternalPage *>(sibling_page_with_page_type->GetData());
+      int stolen_index;
+      int insert_index;
+      if (is_right) {
+        stolen_index = 0;
+        insert_index = parent_page_internal->GetSize() - 1;
+      } else {
+        stolen_index = sibling_page_internal->GetSize() - 1;
+        insert_index = 0;
+      }
+      auto stolen_key = sibling_page_internal->KeyAt(stolen_index);
+      auto stolen_value = sibling_page_internal->ValueAt(stolen_index);
+      sibling_page_internal->RemoveAt(stolen_index);
+      parent_page_internal->InsertAt(insert_index, stolen_key, stolen_value);
+      if (is_right) {
+        auto update_child_with_page_type = this->buffer_pool_manager_->FetchPage(stolen_value);
+        auto *update_child = reinterpret_cast<BPlusTreePage *>(update_child_with_page_type->GetData());
+
+      }
+      this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
+    }
   }
-  
 }
 
 INDEX_TEMPLATE_ARGUMENTS
