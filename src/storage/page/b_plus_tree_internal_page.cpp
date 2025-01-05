@@ -199,6 +199,45 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetSibling(const KeyType &key, KeyComparato
   return false;
 }
 
+INDEX_TEMPLATE_ARGUMENTS
+auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm,
+                                              KeyComparator &cmp, page_id_t *sibling_page_id) -> void {
+  page_id_t parent_id = this->GetParentPageId();
+  Page *parent_page = bpm->FetchPage(parent_id);
+  auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
+  int index = parent->BisectPosition(this->KeyAt(0), cmp);
+  int left_index = index - 1;
+  int right_index = index + 1;
+  if (left_index < 0) {
+    // Must do something from right
+    *is_right = true;
+    Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
+    auto *right = reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(right_page->GetData());
+    if (right->GetSize() == right->GetMinSize()) {
+      *is_merge = true;
+    } else {
+      *is_merge = false;
+    }
+    bpm->UnpinPage(parent_id, false);
+    bpm->UnpinPage(right->GetPageId(), false);
+    return;
+  }
+  Page *left_page = bpm->FetchPage(parent->ValueAt(left_index));
+  Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
+  auto *left = reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(left_page->GetData());
+  auto *right = reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(right_page->GetData());
+  if (left->GetSize() == left->GetMinSize() && right->GetSize() == right->GetMinSize()) {
+    *is_merge = true;
+    *is_right = true;
+  } else {
+    *is_merge = false;
+    *is_right = (left->GetSize() == left->GetMinSize() || right->GetSize() > right->GetMinSize());
+  }
+  bpm->UnpinPage(parent_id, false);
+  bpm->UnpinPage(left->GetPageId(), false);
+  bpm->UnpinPage(right->GetPageId(), false);
+}
+
 // valuetype for internalNode should be page id_t
 template class BPlusTreeInternalPage<GenericKey<4>, page_id_t, GenericComparator<4>>;
 template class BPlusTreeInternalPage<GenericKey<8>, page_id_t, GenericComparator<8>>;

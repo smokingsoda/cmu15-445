@@ -14,6 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include "buffer/buffer_pool_manager.h"
+#include "common/config.h"
 #include "storage/page/b_plus_tree_page.h"
 #include "type/value.h"
 
@@ -61,8 +63,9 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto DecrementSize() -> void;
   auto RemoveAt(int index) -> KeyType;
   auto RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
-  auto MergeWith(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, bool is_right) -> void
-
+  auto MergeWith(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, bool is_right) -> void;
+  auto StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm, KeyComparator &cmp,
+                    page_id_t *sibling_page_id) -> void;
 
  private:
   page_id_t next_page_id_;
