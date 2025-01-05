@@ -72,6 +72,10 @@ auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
   ValueType value;
   auto index = target_page_leaf->BisectPosition(key, this->comparator_);
+  if (index + 1 >= target_page_leaf->GetSize()) {
+    this->buffer_pool_manager_->UnpinPage(target_page_id, false);
+    return false;
+  }
   if (this->comparator_(target_page_leaf->KeyAt(index + 1), key) == 0) {
     value = target_page_leaf->ValueAt(index + 1);
     result->push_back(value);
@@ -261,10 +265,8 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       return;
     }
     target_page_leaf->RemoveAt(index + 1);
-    if (target_page_leaf->GetSize() >= target_page_leaf->GetMinSize()) {
-      this->buffer_pool_manager_->UnpinPage(target_page_id, true);
-      return;
-    }
+    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+    return;
   }
   auto index = target_page_leaf->BisectPosition(key, this->comparator_);
   KeyType target_key = target_page_leaf->KeyAt(index + 1);
