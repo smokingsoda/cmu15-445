@@ -153,14 +153,16 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetPairAt(int index) const -> MappingType {
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm,
-                                                  KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index)
-    -> void {
+                                                  KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index) -> void {
   page_id_t parent_id = this->GetParentPageId();
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
-  int index = parent->BisectPosition(this->KeyAt(0), cmp);
-  if (cmp(parent->KeyAt(index + 1), this->KeyAt(0)) == 0) {
-    index = index + 1;
+  int index = -1;
+  for (int i = 0; i < parent->GetSize(); i++) {
+    if (parent->ValueAt(i) == this->GetPageId()) {
+      index = i;
+      break;
+    }
   }
   int left_index = index - 1;
   int right_index = index + 1;
@@ -195,6 +197,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right
     bpm->UnpinPage(parent_id, false);
     bpm->UnpinPage(left->GetPageId(), false);
     return;
+  
   }
   Page *left_page = bpm->FetchPage(parent->ValueAt(left_index));
   Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));

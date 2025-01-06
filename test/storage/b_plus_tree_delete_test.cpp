@@ -204,7 +204,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  std::vector<int64_t> remove_keys = {3, 20, 26, 29, 1, 2, 6};
+  std::vector<int64_t> remove_keys = {3, 20, 26, 29, 1, 2, 4, 6, 18};
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
@@ -228,7 +228,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     }
   }
 
-  EXPECT_EQ(size, 23);
+  EXPECT_EQ(size, 21);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
