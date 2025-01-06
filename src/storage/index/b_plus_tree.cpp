@@ -37,15 +37,36 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
     return true;
   }
   auto *root_page_internal = reinterpret_cast<InternalPage *>(root_page);
-  page_id_t target_page_id = root_page_internal->ValueAt(root_page_internal->BisectPosition(key, this->comparator_));
+  auto index = root_page_internal->BisectPosition(key, this->comparator_);
+  page_id_t target_page_id;
+  if (index == root_page_internal->GetSize() - 1) {
+    target_page_id = root_page_internal->ValueAt(index);
+  } else {
+    auto key_at_index_plus_one = root_page_internal->KeyAt(index + 1);
+    if (this->comparator_(key_at_index_plus_one, key) == 0) {
+      target_page_id = root_page_internal->ValueAt(index + 1);
+    } else {
+      target_page_id = root_page_internal->ValueAt(index);
+    }
+  }
   // Unpin root page
   this->buffer_pool_manager_->UnpinPage(this->GetRootPageId(), false);
   Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
   auto *target_page = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
   while (!target_page->IsLeafPage()) {
     auto *target_page_internal = reinterpret_cast<InternalPage *>(target_page);
-    auto new_target_page_id =
-        target_page_internal->ValueAt(target_page_internal->BisectPosition(key, this->comparator_));
+    index = target_page_internal->BisectPosition(key, this->comparator_);
+    page_id_t new_target_page_id;
+    if (index == target_page_internal->GetSize() - 1) {
+      new_target_page_id = target_page_internal->ValueAt(index);
+    } else {
+      auto key_at_index_plus_one = target_page_internal->KeyAt(index + 1);
+      if (this->comparator_(key_at_index_plus_one, key) == 0) {
+        new_target_page_id = target_page_internal->ValueAt(index + 1);
+      } else {
+        new_target_page_id = target_page_internal->ValueAt(index);
+      }
+    }
     this->buffer_pool_manager_->UnpinPage(target_page_id, false);
     target_page_id = new_target_page_id;
     target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
@@ -265,8 +286,10 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       return;
     }
     target_page_leaf->RemoveAt(index + 1);
-    this->buffer_pool_manager_->UnpinPage(target_page_id, true);
-    return;
+    if (target_page_leaf->GetSize() >= target_page_leaf->GetMinSize()) {
+      this->buffer_pool_manager_->UnpinPage(target_page_id, true);
+      return;
+    }
   }
   auto index = target_page_leaf->BisectPosition(key, this->comparator_);
   KeyType target_key = target_page_leaf->KeyAt(index + 1);

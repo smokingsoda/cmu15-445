@@ -172,6 +172,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
     *is_right = true;
     Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
     auto *right = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(right_page->GetData());
+    *sibling_page_id = right->GetPageId();
     if (right->GetSize() == right->GetMinSize()) {
       *is_merge = true;
     } else {
@@ -188,9 +189,15 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
   if (left->GetSize() == left->GetMinSize() && right->GetSize() == right->GetMinSize()) {
     *is_merge = true;
     *is_right = true;
+    *sibling_page_id = right->GetPageId();
   } else {
     *is_merge = false;
     *is_right = (left->GetSize() == left->GetMinSize() || right->GetSize() > right->GetMinSize());
+    if (*is_right) {
+      *sibling_page_id = right->GetPageId();
+    } else {
+      *sibling_page_id = left->GetPageId();
+    }
   }
   bpm->UnpinPage(parent_id, false);
   bpm->UnpinPage(left->GetPageId(), false);
