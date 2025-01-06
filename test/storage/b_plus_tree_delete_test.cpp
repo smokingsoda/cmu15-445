@@ -64,7 +64,7 @@ TEST(BPlusTreeTests, DeleteTest1) {
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
-    count ++;
+    count++;
     LOG_INFO("%d", count);
   }
 

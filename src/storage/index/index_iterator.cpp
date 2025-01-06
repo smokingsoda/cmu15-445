@@ -22,7 +22,7 @@ INDEXITERATOR_TYPE::IndexIterator(page_id_t leaf_id, BufferPoolManager *bpm, int
   this->leaf_id_ = leaf_id;
   this->bpm_ = bpm;
   this->index_ = index;
-};
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE::~IndexIterator() = default;  // NOLINT

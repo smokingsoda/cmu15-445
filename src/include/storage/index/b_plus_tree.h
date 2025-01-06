@@ -45,7 +45,7 @@ class BPlusTree {
 
   // Accroding to the given key, find the leaf page id
   auto FindLeaf(const KeyType &key, page_id_t *page_id) -> bool;
-  
+
   // Returns true if this B+ tree has no keys and values.
   auto IsEmpty() const -> bool;
 

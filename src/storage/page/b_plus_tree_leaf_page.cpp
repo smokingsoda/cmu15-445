@@ -160,7 +160,8 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::MergeWith(BPlusTreeLeafPage<KeyType, ValueType,
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm,
-                                              KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index) -> void {
+                                              KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index)
+    -> void {
   page_id_t parent_id = this->GetParentPageId();
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
@@ -201,7 +202,6 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
     bpm->UnpinPage(parent_id, false);
     bpm->UnpinPage(left->GetPageId(), false);
     return;
-  
   }
   Page *left_page = bpm->FetchPage(parent->ValueAt(left_index));
   Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
