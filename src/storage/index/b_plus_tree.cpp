@@ -343,7 +343,12 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   this->buffer_pool_manager_->UnpinPage(sibling_page_leaf->GetPageId(), true);
   this->buffer_pool_manager_->DeletePage(delete_page_id);
   // Handle parent node
-  parent_page_internal->RemoveAt(index + 1);
+  if (is_right) {
+    parent_page_internal->RemoveAt(index);
+  } else {
+    parent_page_internal->RemoveAt(index + 1);
+  }
+
   while (parent_page_internal->GetSize() < parent_page_internal->GetMinSize()) {
     // First handle root page
     if (parent_page_internal->IsRootPage()) {
@@ -353,7 +358,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       auto *new_root_page_internal = reinterpret_cast<InternalPage *>(new_root_page_general);
       if (new_root_page_internal->GetPageId() == 3) {
         auto max = new_root_page_internal->GetSize();
-        LOG_INFO("Hey! Size: %d", max);
+        LOG_INFO("Size: %d", max);
         for (int i = 0; i < max; i++) {
           std::cout << new_root_page_internal->KeyAt(i) << " ";
         }
