@@ -145,7 +145,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::MergeWith(BPlusTreeLeafPage<KeyType, ValueType,
   auto offset = this->GetSize();
   if (is_right) {
     for (int i = 0; i < limit; i++) {
-      this->array_[i + offset] = from_page->GetPairAt(i);
+      this->array_[i + offset - 1] = from_page->GetPairAt(i);
       this->IncrementSize();
       from_page->DecrementSize();
     }
@@ -160,7 +160,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::MergeWith(BPlusTreeLeafPage<KeyType, ValueType,
 
 INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm,
-                                              KeyComparator &cmp, page_id_t *sibling_page_id) -> void {
+                                              KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index) -> void {
   page_id_t parent_id = this->GetParentPageId();
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
@@ -170,6 +170,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
   if (left_index < 0) {
     // Must do something from right
     *is_right = true;
+    *sibling_index = right_index;
     Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
     auto *right = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(right_page->GetData());
     *sibling_page_id = right->GetPageId();
@@ -189,14 +190,17 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
   if (left->GetSize() == left->GetMinSize() && right->GetSize() == right->GetMinSize()) {
     *is_merge = true;
     *is_right = true;
+    *sibling_index = right_index;
     *sibling_page_id = right->GetPageId();
   } else {
     *is_merge = false;
     *is_right = (left->GetSize() == left->GetMinSize() || right->GetSize() > right->GetMinSize());
     if (*is_right) {
       *sibling_page_id = right->GetPageId();
+      *sibling_index = right_index;
     } else {
       *sibling_page_id = left->GetPageId();
+      *sibling_index = left_index;
     }
   }
   bpm->UnpinPage(parent_id, false);

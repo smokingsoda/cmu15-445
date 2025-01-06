@@ -279,17 +279,6 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       this->buffer_pool_manager_->DeletePage(target_page_id);
       return;
     }
-    auto index = target_page_leaf->BisectPosition(key, this->comparator_);
-    KeyType target_key = target_page_leaf->KeyAt(index + 1);
-    if (this->comparator_(target_key, key) != 0) {
-      this->buffer_pool_manager_->UnpinPage(target_page_id, false);
-      return;
-    }
-    target_page_leaf->RemoveAt(index + 1);
-    if (target_page_leaf->GetSize() >= target_page_leaf->GetMinSize()) {
-      this->buffer_pool_manager_->UnpinPage(target_page_id, true);
-      return;
-    }
   }
   auto index = target_page_leaf->BisectPosition(key, this->comparator_);
   KeyType target_key = target_page_leaf->KeyAt(index + 1);
@@ -306,7 +295,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   bool is_merge;
   bool is_right;
   page_id_t sibling_page_id;
-  target_page_leaf->StealOrMerge(&is_merge, &is_right, this->buffer_pool_manager_, this->comparator_, &sibling_page_id);
+  target_page_leaf->StealOrMerge(&is_merge, &is_right, this->buffer_pool_manager_, this->comparator_, &sibling_page_id, &index);
   Page *sibling_page_with_page_type = this->buffer_pool_manager_->FetchPage(sibling_page_id);
   auto *sibling_page_general = reinterpret_cast<BPlusTreePage *>(sibling_page_with_page_type->GetData());
   auto *sibling_page_leaf = reinterpret_cast<LeafPage *>(sibling_page_general);
@@ -339,10 +328,12 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   page_id_t delete_page_id;
   if (is_right) {
     target_page_leaf->MergeWith(sibling_page_leaf, true);
+    target_page_leaf->SetNextPageId(sibling_page_leaf->GetNextPageId());
     new_leaf = target_page_leaf;
     delete_page_id = sibling_page_id;
   } else {
     sibling_page_leaf->MergeWith(target_page_leaf, true);
+    sibling_page_leaf->SetNextPageId(target_page_leaf->GetNextPageId());
     new_leaf = sibling_page_leaf;
     delete_page_id = target_page_id;
   }
@@ -365,7 +356,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       return;
     }
     parent_page_internal->StealOrMerge(&is_merge, &is_right, this->buffer_pool_manager_, this->comparator_,
-                                       &sibling_page_id);
+                                       &sibling_page_id, &index);
     sibling_page_with_page_type = this->buffer_pool_manager_->FetchPage(sibling_page_id);
     sibling_page_general = reinterpret_cast<BPlusTreePage *>(sibling_page_with_page_type->GetData());
     auto sibling_page_internal = reinterpret_cast<InternalPage *>(sibling_page_general);
@@ -392,6 +383,9 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
                                              sibling_page_internal->KeyAt(sibling_page_internal->GetSize() - 1));
         sibling_page_internal->RemoveAt(sibling_page_internal->GetSize() - 1);
       }
+      parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+      sibling_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+      grand_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
       this->buffer_pool_manager_->UnpinPage(sibling_page_internal->GetParentPageId(), true);
       this->buffer_pool_manager_->UnpinPage(parent_page_internal->GetPageId(), true);
       this->buffer_pool_manager_->UnpinPage(grand_parent_page_internal->GetPageId(), true);
@@ -427,6 +421,8 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       new_internal = sibling_page_internal;
       delete_internal_page_id = target_page_id;
     }
+    new_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+    grand_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
     this->buffer_pool_manager_->UnpinPage(parent_page_internal->GetParentPageId(), true);
     this->buffer_pool_manager_->UnpinPage(sibling_page_internal->GetPageId(), true);
     this->buffer_pool_manager_->DeletePage(delete_internal_page_id);

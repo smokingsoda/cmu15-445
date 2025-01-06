@@ -65,7 +65,7 @@ class BPlusTreeLeafPage : public BPlusTreePage {
   auto RedistributeFrom(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, int index) -> void;
   auto MergeWith(BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *from_page, bool is_right) -> void;
   auto StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm, KeyComparator &cmp,
-                    page_id_t *sibling_page_id) -> void;
+                    page_id_t *sibling_page_id, int *sibling_index) -> void;
 
  private:
   page_id_t next_page_id_;

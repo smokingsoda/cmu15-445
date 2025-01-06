@@ -152,56 +152,8 @@ INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetPairAt(int index) const -> MappingType { return this->array_[index]; }
 
 INDEX_TEMPLATE_ARGUMENTS
-auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::GetSibling(const KeyType &key, KeyComparator &cmp, page_id_t *sibling_page_id,
-                                                bool *is_right, BufferPoolManager *bpm, int *target_index,
-                                                int *sibling_index) const -> bool {
-  // Use the right sibling as default
-  // if the size is enough, return true
-  auto index = this->BisectPosition(key, cmp);
-  *target_index = index;
-  if (index == this->GetSize() - 1) {
-    *sibling_index = index - 1;
-    *sibling_page_id = this->ValueAt(index - 1);
-    *is_right = false;
-    Page *sibling_page = bpm->FetchPage(*sibling_page_id);
-    auto *sibling = reinterpret_cast<BPlusTreePage *>(sibling_page->GetData());
-    if (sibling->GetSize() - 1 >= sibling->GetMinSize()) {
-      bpm->UnpinPage(*sibling_page_id, false);
-      return true;
-    }
-    bpm->UnpinPage(*sibling_page_id, false);
-    return false;
-  }
-  auto left_id = this->ValueAt(index - 1);
-  auto right_id = this->ValueAt(index + 1);
-  Page *left_page = bpm->FetchPage(left_id);
-  Page *right_page = bpm->FetchPage(right_id);
-  auto left = reinterpret_cast<BPlusTreePage *>(left_page->GetData());
-  auto right = reinterpret_cast<BPlusTreePage *>(right_page->GetData());
-  if (right->GetSize() - 1 >= right->GetMinSize()) {
-    *sibling_index = index + 1;
-    *is_right = true;
-    bpm->UnpinPage(left_id, false);
-    bpm->UnpinPage(right_id, false);
-    return true;
-  }
-  if (left->GetSize() - 1 >= left->GetMinSize()) {
-    *sibling_index = index - 1;
-    *is_right = false;
-    bpm->UnpinPage(left_id, false);
-    bpm->UnpinPage(right_id, false);
-    return true;
-  }
-  *sibling_index = index + 1;
-  *is_right = true;
-  bpm->UnpinPage(left_id, false);
-  bpm->UnpinPage(right_id, false);
-  return false;
-}
-
-INDEX_TEMPLATE_ARGUMENTS
 auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm,
-                                                  KeyComparator &cmp, page_id_t *sibling_page_id) -> void {
+                                                  KeyComparator &cmp, page_id_t *sibling_page_id, int *sibling_index) -> void {
   page_id_t parent_id = this->GetParentPageId();
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
@@ -214,6 +166,7 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right
     Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));
     auto *right = reinterpret_cast<BPlusTreeInternalPage<KeyType, ValueType, KeyComparator> *>(right_page->GetData());
     *sibling_page_id = right->GetPageId();
+    *sibling_index = right_index;
     if (right->GetSize() == right->GetMinSize()) {
       *is_merge = true;
     } else {
@@ -231,13 +184,16 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right
     *is_merge = true;
     *is_right = true;
     *sibling_page_id = right->GetPageId();
+    *sibling_index = right_index;
   } else {
     *is_merge = false;
     *is_right = (left->GetSize() == left->GetMinSize() || right->GetSize() > right->GetMinSize());
     if (*is_right) {
       *sibling_page_id = right->GetPageId();
+      *sibling_index = right_index;
     } else {
       *sibling_page_id = left->GetPageId();
+      *sibling_index = left_index;
     }
   }
   bpm->UnpinPage(parent_id, false);

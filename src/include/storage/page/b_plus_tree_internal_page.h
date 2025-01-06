@@ -54,10 +54,8 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   auto UpdateChildrenPointers(BufferPoolManager *bmp) -> void;
   auto GetPairAt(int index) const -> MappingType;
   auto Rearrange() -> KeyType;
-  auto GetSibling(const KeyType &key, KeyComparator &cmp, page_id_t *sibling_page_id, bool *is_right,
-                  BufferPoolManager *bpm, int *target_index, int *sibling_index) const -> bool;
   auto StealOrMerge(bool *is_merge, bool *is_right, BufferPoolManager *bpm, KeyComparator &cmp,
-                    page_id_t *sibling_page_id) -> void;
+                    page_id_t *sibling_page_id, int *sibling_index) -> void;
 
  private:
   // Flexible array member for page data.
