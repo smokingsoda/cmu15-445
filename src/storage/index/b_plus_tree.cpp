@@ -312,13 +312,13 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       stolen_value = sibling_page_leaf->ValueAt(0);
       sibling_page_leaf->RemoveAt(0);
       target_page_leaf->InsertAt(target_page_leaf->GetSize(), stolen_key, stolen_value);
-      parent_page_internal->SetKeyAt(index + 1, sibling_page_leaf->KeyAt(0));
+      parent_page_internal->SetKeyAt(index, sibling_page_leaf->KeyAt(0));
     } else {
       stolen_key = sibling_page_leaf->KeyAt(sibling_page_leaf->GetSize() - 1);
       stolen_value = sibling_page_leaf->ValueAt(sibling_page_leaf->GetSize() - 1);
       sibling_page_leaf->RemoveAt(sibling_page_leaf->GetSize() - 1);
       target_page_leaf->InsertAt(0, stolen_key, stolen_value);
-      parent_page_internal->SetKeyAt(index, target_page_leaf->KeyAt(0));
+      parent_page_internal->SetKeyAt(index, sibling_page_leaf->KeyAt(sibling_page_leaf->GetSize() - 1));
     }
     this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
     this->buffer_pool_manager_->UnpinPage(target_page_id, true);
@@ -355,14 +355,6 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       this->root_page_id_ = parent_page_internal->ValueAt(0);
       Page *new_root_page_with_page_type = this->buffer_pool_manager_->FetchPage(this->root_page_id_);
       auto *new_root_page_general = reinterpret_cast<BPlusTreePage *>(new_root_page_with_page_type->GetData());
-      auto *new_root_page_internal = reinterpret_cast<InternalPage *>(new_root_page_general);
-      if (new_root_page_internal->GetPageId() == 3) {
-        auto max = new_root_page_internal->GetSize();
-        LOG_INFO("Size: %d", max);
-        for (int i = 0; i < max; i++) {
-          std::cout << new_root_page_internal->KeyAt(i) << " ";
-        }
-      }
       new_root_page_general->SetParentPageId(INVALID_PAGE_ID);
       UpdateRootPageId(0);
       this->buffer_pool_manager_->UnpinPage(this->root_page_id_, true);
@@ -434,13 +426,6 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     }
     new_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
     grand_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
-    if (new_internal->GetPageId() == 3) {
-      auto max = new_internal->GetSize();
-      LOG_INFO("Size: %d", max);
-      for (int i = 0; i < max; i++) {
-        std::cout << new_internal->KeyAt(i) << " ";
-      }
-    }
     this->buffer_pool_manager_->UnpinPage(parent_page_internal->GetParentPageId(), true);
     this->buffer_pool_manager_->UnpinPage(new_internal->GetPageId(), true);
     this->buffer_pool_manager_->DeletePage(delete_internal_page_id);
