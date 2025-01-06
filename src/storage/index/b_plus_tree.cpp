@@ -87,8 +87,14 @@ auto BPLUSTREE_TYPE::FindLeaf(const KeyType &key, page_id_t *page_id) -> bool {
  */
 INDEX_TEMPLATE_ARGUMENTS
 auto BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) -> bool {
-  page_id_t target_page_id;
+  page_id_t target_page_id = INVALID_PAGE_ID;
+  if (this->IsEmpty()) {
+    return false;
+  }
   BUSTUB_ASSERT((this->FindLeaf(key, &target_page_id)), "No");
+  if (target_page_id == INVALID_PAGE_ID) {
+    return false;
+  }
   Page *target_page_with_page_type = this->buffer_pool_manager_->FetchPage(target_page_id);
   auto *target_page_general = reinterpret_cast<BPlusTreePage *>(target_page_with_page_type->GetData());
   auto *target_page_leaf = reinterpret_cast<LeafPage *>(target_page_general);
@@ -418,8 +424,8 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       auto limit = parent_page_internal->GetSize();
       for (int i = 0; i < limit; i++) {
         sibling_page_internal->InsertAt(sibling_page_internal->GetSize(), it_key, it_page_id);
-        it_key = sibling_page_internal->KeyAt(i + 1);
-        it_page_id = sibling_page_internal->ValueAt(i + 1);
+        it_key = parent_page_internal->KeyAt(i + 1);
+        it_page_id = parent_page_internal->ValueAt(i + 1); // Here used to be a bug
       }
       new_internal = sibling_page_internal;
       delete_internal_page_id = target_page_id;
