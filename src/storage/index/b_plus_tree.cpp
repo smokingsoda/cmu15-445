@@ -318,7 +318,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       stolen_value = sibling_page_leaf->ValueAt(sibling_page_leaf->GetSize() - 1);
       sibling_page_leaf->RemoveAt(sibling_page_leaf->GetSize() - 1);
       target_page_leaf->InsertAt(0, stolen_key, stolen_value);
-      parent_page_internal->SetKeyAt(index, sibling_page_leaf->KeyAt(sibling_page_leaf->GetSize() - 1));
+      parent_page_internal->SetKeyAt(index + 1, target_page_leaf->KeyAt(0));
     }
     this->buffer_pool_manager_->UnpinPage(sibling_page_id, true);
     this->buffer_pool_manager_->UnpinPage(target_page_id, true);

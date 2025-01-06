@@ -157,12 +157,9 @@ auto B_PLUS_TREE_INTERNAL_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right
   page_id_t parent_id = this->GetParentPageId();
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
-  int index = -1;
-  for (int i = 0; i < parent->GetSize(); i++) {
-    if (parent->ValueAt(i) == this->GetPageId()) {
-      index = i;
-      break;
-    }
+  int index = parent->BisectPosition(this->KeyAt(1), cmp);
+  if (cmp(parent->KeyAt(index + 1), this->KeyAt(1)) == 0) {
+    index = index + 1;
   }
   int left_index = index - 1;
   int right_index = index + 1;
