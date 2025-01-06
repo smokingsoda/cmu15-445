@@ -145,7 +145,7 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::MergeWith(BPlusTreeLeafPage<KeyType, ValueType,
   auto offset = this->GetSize();
   if (is_right) {
     for (int i = 0; i < limit; i++) {
-      this->array_[i + offset - 1] = from_page->GetPairAt(i);
+      this->array_[i + offset] = from_page->GetPairAt(i);
       this->IncrementSize();
       from_page->DecrementSize();
     }
