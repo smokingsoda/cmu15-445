@@ -165,6 +165,9 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
   Page *parent_page = bpm->FetchPage(parent_id);
   auto *parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *>(parent_page->GetData());
   int index = parent->BisectPosition(this->KeyAt(0), cmp);
+  if (cmp(parent->KeyAt(index + 1), this->KeyAt(0)) == 0) {
+    index = index + 1;
+  }
   int left_index = index - 1;
   int right_index = index + 1;
   if (left_index < 0) {
@@ -182,6 +185,23 @@ auto B_PLUS_TREE_LEAF_PAGE_TYPE::StealOrMerge(bool *is_merge, bool *is_right, Bu
     bpm->UnpinPage(parent_id, false);
     bpm->UnpinPage(right->GetPageId(), false);
     return;
+  }
+  if (right_index >= parent->GetSize()) {
+    // Must do something from left
+    *is_right = false;
+    *sibling_index = left_index;
+    Page *left_page = bpm->FetchPage(parent->ValueAt(left_index));
+    auto *left = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(left_page->GetData());
+    *sibling_page_id = left->GetPageId();
+    if (left->GetSize() == left->GetMinSize()) {
+      *is_merge = true;
+    } else {
+      *is_merge = false;
+    }
+    bpm->UnpinPage(parent_id, false);
+    bpm->UnpinPage(left->GetPageId(), false);
+    return;
+  
   }
   Page *left_page = bpm->FetchPage(parent->ValueAt(left_index));
   Page *right_page = bpm->FetchPage(parent->ValueAt(right_index));

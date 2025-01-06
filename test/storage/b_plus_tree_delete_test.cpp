@@ -14,6 +14,7 @@
 #include <cstdio>
 
 #include "buffer/buffer_pool_manager_instance.h"
+#include "common/logger.h"
 #include "gtest/gtest.h"
 #include "storage/index/b_plus_tree.h"
 #include "test_util.h"  // NOLINT
@@ -59,9 +60,12 @@ TEST(BPlusTreeTests, DeleteTest1) {
   }
 
   std::vector<int64_t> remove_keys = {1, 5};
+  int count = 0;
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
+    count ++;
+    LOG_INFO("%d", count);
   }
 
   int64_t size = 0;
