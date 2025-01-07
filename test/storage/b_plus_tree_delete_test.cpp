@@ -249,9 +249,9 @@ TEST(BPlusTreeTests, DeleteTest4) {
   GenericComparator<8> comparator(key_schema.get());
 
   auto *disk_manager = new DiskManager("test.db");
-  BufferPoolManager *bpm = new BufferPoolManagerInstance(10000, disk_manager);
+  BufferPoolManager *bpm = new BufferPoolManagerInstance(100000, disk_manager);
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 100, 100);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 200, 200);
   GenericKey<8> index_key;
   RID rid;
   // create transaction
@@ -262,7 +262,7 @@ TEST(BPlusTreeTests, DeleteTest4) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys(10000);
+  std::vector<int64_t> keys(1000000);
   std::iota(keys.begin(), keys.end(), 1);
 
   for (auto key : keys) {
@@ -284,58 +284,69 @@ TEST(BPlusTreeTests, DeleteTest4) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  // Randomly remove keys and check consistency
-  std::unordered_set<int64_t> remaining_keys(keys.begin(), keys.end());
-  while (!remaining_keys.empty()) {
-    // Randomly pick a key to remove
-    auto it = remaining_keys.begin();
-    std::advance(it, std::rand() % remaining_keys.size());
-    int64_t key_to_remove = *it;
-    // std::cerr << "Removing key: " << key_to_remove << std::endl;
-    // Remove the key
-    index_key.SetFromInteger(key_to_remove);
-    tree.Remove(index_key, transaction);
-
-    // Update the remaining keys
-    remaining_keys.erase(it);
-    // auto cur = *it;
-    // EXPECT_EQ(remaining_keys.count(cur), 0);
-    // Validate all remaining keys
-    // int64_t size = 0;
+  for (auto key : keys) {
     rids.clear();
-    index_key.SetFromInteger(key_to_remove);
+    index_key.SetFromInteger(key);
+    tree.Remove(index_key);
     EXPECT_FALSE(tree.GetValue(index_key, &rids));
-    // for (auto key : keys) {
-    //   rids.clear();
-    //   index_key.SetFromInteger(key);
-    //   bool is_present = tree.GetValue(index_key, &rids);
-    //   if (!is_present) {
-    //     EXPECT_EQ(remaining_keys.count(key), 0);
-    //   } else {
-    //     EXPECT_EQ(rids.size(), 1);
-    //     EXPECT_EQ(rids[0].GetPageId(), 0);
-    //     EXPECT_EQ(rids[0].GetSlotNum(), key);
-    //     size = size + 1;
-    //   }
-    // }
+    EXPECT_EQ(rids.size(), 0);
 
-    // Check if the size matches the remaining keys count
-    // EXPECT_EQ(size, remaining_keys.size());
-    // if (size != static_cast<int64_t>(remaining_keys.size())) {
-    //   std::cerr << "Test failed! Size mismatch:" << std::endl;
-    //   std::cerr << "Keys: ";
-    //   for (auto key : keys) {
-    //     std::cerr << key << " ";
-    //   }
-    //   std::cerr << std::endl;
-
-    //   std::cerr << "Remaining Keys: ";
-    //   for (auto key : remaining_keys) {
-    //     std::cerr << key << " ";
-    //   }
-    //   std::cerr << std::endl;
-    // }
+    // int64_t value = key & 0xFFFFFFFF;
+    // EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
+
+  // Randomly remove keys and check consistency
+  // std::unordered_set<int64_t> remaining_keys(keys.begin(), keys.end());
+  // while (!remaining_keys.empty()) {
+  //   // Randomly pick a key to remove
+  //   auto it = remaining_keys.begin();
+  //   std::advance(it, std::rand() % remaining_keys.size());
+  //   int64_t key_to_remove = *it;
+  //   // std::cerr << "Removing key: " << key_to_remove << std::endl;
+  //   // Remove the key
+  //   index_key.SetFromInteger(key_to_remove);
+  //   tree.Remove(index_key, transaction);
+
+  //   // Update the remaining keys
+  //   remaining_keys.erase(it);
+  //   auto cur = *it;
+  //   EXPECT_EQ(remaining_keys.count(cur), 0);
+  //   // Validate all remaining keys
+  //   int64_t size = 0;
+  //   rids.clear();
+  //   index_key.SetFromInteger(key_to_remove);
+  //   EXPECT_FALSE(tree.GetValue(index_key, &rids));
+  //   for (auto key : keys) {
+  //     rids.clear();
+  //     index_key.SetFromInteger(key);
+  //     bool is_present = tree.GetValue(index_key, &rids);
+  //     if (!is_present) {
+  //       EXPECT_EQ(remaining_keys.count(key), 0);
+  //     } else {
+  //       EXPECT_EQ(rids.size(), 1);
+  //       EXPECT_EQ(rids[0].GetPageId(), 0);
+  //       EXPECT_EQ(rids[0].GetSlotNum(), key);
+  //       size = size + 1;
+  //     }
+  //   }
+
+  //   Check if the size matches the remaining keys count
+  //   EXPECT_EQ(size, remaining_keys.size());
+  //   if (size != static_cast<int64_t>(remaining_keys.size())) {
+  //     std::cerr << "Test failed! Size mismatch:" << std::endl;
+  //     std::cerr << "Keys: ";
+  //     for (auto key : keys) {
+  //       std::cerr << key << " ";
+  //     }
+  //     std::cerr << std::endl;
+
+  //     std::cerr << "Remaining Keys: ";
+  //     for (auto key : remaining_keys) {
+  //       std::cerr << key << " ";
+  //     }
+  //     std::cerr << std::endl;
+  //   }
+  // }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
