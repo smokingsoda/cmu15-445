@@ -425,15 +425,29 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
       for (int i = 0; i < limit; i++) {
         sibling_page_internal->InsertAt(sibling_page_internal->GetSize(), it_key, it_page_id);
         it_key = parent_page_internal->KeyAt(i + 1);
-        it_page_id = parent_page_internal->ValueAt(i + 1); // Here used to be a bug
+        it_page_id = parent_page_internal->ValueAt(i + 1);  // Here used to be a bug
       }
       new_internal = sibling_page_internal;
-      delete_internal_page_id = target_page_id;
+      delete_internal_page_id = parent_page_internal->GetPageId();
     }
     new_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
+    for (int i = 0; i < new_internal->GetSize(); i++) {
+      auto child_page_id = new_internal->ValueAt(i);
+      Page *child_page_with_page_type = this->buffer_pool_manager_->FetchPage(child_page_id);
+      auto *child_page_general = reinterpret_cast<BPlusTreePage *>(child_page_with_page_type->GetData());
+      if (child_page_general->IsLeafPage()) {
+        auto *child_page_leaf = reinterpret_cast<LeafPage *>(child_page_general);
+        if (i < new_internal->GetSize() - 1 && child_page_leaf->GetNextPageId() != new_internal->ValueAt(i + 1)) {
+          child_page_leaf->SetNextPageId(new_internal->ValueAt(i + 1));
+          this->buffer_pool_manager_->UnpinPage(child_page_id, true);
+          continue;
+        }
+        this->buffer_pool_manager_->UnpinPage(child_page_id, false);
+      }
+    }
     grand_parent_page_internal->UpdateChildrenPointers(this->buffer_pool_manager_);
-    this->buffer_pool_manager_->UnpinPage(parent_page_internal->GetParentPageId(), true);
-    this->buffer_pool_manager_->UnpinPage(new_internal->GetPageId(), true);
+    this->buffer_pool_manager_->UnpinPage(parent_page_internal->GetPageId(), true);
+    this->buffer_pool_manager_->UnpinPage(sibling_page_internal->GetPageId(), true);
     this->buffer_pool_manager_->DeletePage(delete_internal_page_id);
     parent_page_internal = grand_parent_page_internal;
   }

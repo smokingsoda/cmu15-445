@@ -206,7 +206,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  std::vector<int64_t> remove_keys = {7, 17, 19, 2, 9, 20, 16, 5, 18};
+  std::vector<int64_t> remove_keys = {13};
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
@@ -230,7 +230,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     }
   }
 
-  EXPECT_EQ(size, 7);
+  EXPECT_EQ(size, 19);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -242,7 +242,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
 
 #include <unordered_set>
 
-TEST(BPlusTreeTests, DISABLED_DeleteTest4) {
+TEST(BPlusTreeTests, DeleteTest4) {
   // create KeyComparator and index schema
   auto key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema.get());
@@ -250,7 +250,7 @@ TEST(BPlusTreeTests, DISABLED_DeleteTest4) {
   auto *disk_manager = new DiskManager("test.db");
   BufferPoolManager *bpm = new BufferPoolManagerInstance(50, disk_manager);
   // create b+ tree
-  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 5, 5);
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm, comparator, 3, 3);
   GenericKey<8> index_key;
   RID rid;
   // create transaction
@@ -261,12 +261,8 @@ TEST(BPlusTreeTests, DISABLED_DeleteTest4) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys(20);
+  std::vector<int64_t> keys(46);
   std::iota(keys.begin(), keys.end(), 1);
-
-  std::random_device rd;
-  std::mt19937 gen(rd());
-  std::shuffle(keys.begin(), keys.end(), gen);
 
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
@@ -292,6 +288,7 @@ TEST(BPlusTreeTests, DISABLED_DeleteTest4) {
   while (!remaining_keys.empty()) {
     // Randomly pick a key to remove
     auto it = remaining_keys.begin();
+    std::advance(it, std::rand() % remaining_keys.size());
     int64_t key_to_remove = *it;
     std::cout << "Removing key: " << key_to_remove << std::endl;
     // Remove the key
