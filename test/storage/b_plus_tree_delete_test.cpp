@@ -15,6 +15,7 @@
 #include <iostream>
 #include <numeric>
 #include <random>
+#include <utility>
 
 #include "buffer/buffer_pool_manager_instance.h"
 #include "common/logger.h"
@@ -186,7 +187,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys(20);
+  std::vector<int64_t> keys(30);
   std::iota(keys.begin(), keys.end(), 1);
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
@@ -206,7 +207,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     EXPECT_EQ(rids[0].GetSlotNum(), value);
   }
 
-  std::vector<int64_t> remove_keys = {13};
+  std::vector<int64_t> remove_keys = {2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30};
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);
@@ -230,7 +231,7 @@ TEST(BPlusTreeTests, DeleteTest3) {
     }
   }
 
-  EXPECT_EQ(size, 19);
+  EXPECT_EQ(size, 89);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete transaction;
@@ -261,7 +262,7 @@ TEST(BPlusTreeTests, DeleteTest4) {
   auto header_page = bpm->NewPage(&page_id);
   (void)header_page;
 
-  std::vector<int64_t> keys(46);
+  std::vector<int64_t> keys(30);
   std::iota(keys.begin(), keys.end(), 1);
 
   for (auto key : keys) {
@@ -290,49 +291,49 @@ TEST(BPlusTreeTests, DeleteTest4) {
     auto it = remaining_keys.begin();
     std::advance(it, std::rand() % remaining_keys.size());
     int64_t key_to_remove = *it;
-    std::cout << "Removing key: " << key_to_remove << std::endl;
     // Remove the key
     index_key.SetFromInteger(key_to_remove);
     tree.Remove(index_key, transaction);
 
     // Update the remaining keys
     remaining_keys.erase(it);
-
+    // auto cur = *it;
+    // EXPECT_EQ(remaining_keys.count(cur), 0);
     // Validate all remaining keys
-    // int64_t size = 0;
+    int64_t size = 0;
     rids.clear();
     index_key.SetFromInteger(key_to_remove);
     EXPECT_FALSE(tree.GetValue(index_key, &rids));
-    // for (auto key : keys) {
-    //   rids.clear();
-    //   index_key.SetFromInteger(key);
-    //   bool is_present = tree.GetValue(index_key, &rids);
-    //   if (!is_present) {
-    //     EXPECT_EQ(remaining_keys.count(key), 0);
-    //   } else {
-    //     EXPECT_EQ(rids.size(), 1);
-    //     EXPECT_EQ(rids[0].GetPageId(), 0);
-    //     EXPECT_EQ(rids[0].GetSlotNum(), key);
-    //     size = size + 1;
-    //   }
-    // }
+    for (auto key : keys) {
+      rids.clear();
+      index_key.SetFromInteger(key);
+      bool is_present = tree.GetValue(index_key, &rids);
+      if (!is_present) {
+        EXPECT_EQ(remaining_keys.count(key), 0);
+      } else {
+        EXPECT_EQ(rids.size(), 1);
+        EXPECT_EQ(rids[0].GetPageId(), 0);
+        EXPECT_EQ(rids[0].GetSlotNum(), key);
+        size = size + 1;
+      }
+    }
 
-    // // Check if the size matches the remaining keys count
-    // EXPECT_EQ(size, remaining_keys.size());
-    // if (size != static_cast<int64_t>(remaining_keys.size())) {
-    //   std::cerr << "Test failed! Size mismatch:" << std::endl;
-    //   std::cerr << "Keys: ";
-    //   for (auto key : keys) {
-    //     std::cerr << key << " ";
-    //   }
-    //   std::cerr << std::endl;
+    // Check if the size matches the remaining keys count
+    EXPECT_EQ(size, remaining_keys.size());
+    if (size != static_cast<int64_t>(remaining_keys.size())) {
+      std::cerr << "Test failed! Size mismatch:" << std::endl;
+      std::cerr << "Keys: ";
+      for (auto key : keys) {
+        std::cerr << key << " ";
+      }
+      std::cerr << std::endl;
 
-    //   std::cerr << "Remaining Keys: ";
-    //   for (auto key : remaining_keys) {
-    //     std::cerr << key << " ";
-    //   }
-    //   std::cerr << std::endl;
-    // }
+      std::cerr << "Remaining Keys: ";
+      for (auto key : remaining_keys) {
+        std::cerr << key << " ";
+      }
+      std::cerr << std::endl;
+    }
   }
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);

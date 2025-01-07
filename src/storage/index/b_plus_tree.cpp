@@ -391,7 +391,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
         stolen_key = grand_parent_page_internal->KeyAt(sibling_index + 1);
         stolen_page_id = sibling_page_internal->ValueAt(sibling_page_internal->GetSize() - 1);
         parent_page_internal->InsertAt(0, stolen_key, stolen_page_id);
-        parent_page_internal->SetKeyAt(0, stolen_key);
+        parent_page_internal->SetKeyAt(1, stolen_key); // Here used to be a bug
         grand_parent_page_internal->SetKeyAt(sibling_index + 1,
                                              sibling_page_internal->KeyAt(sibling_page_internal->GetSize() - 1));
         sibling_page_internal->RemoveAt(sibling_page_internal->GetSize() - 1);
